@@ -6,6 +6,17 @@ Created on Mon Jan 17 20:29:31 2022
 """
 
 class TimeDiscretization:
+    """
+        Class for managing time discretization in Monte Carlo-simulatoins
+        
+        Inputs:
+            initial,        start time
+            
+            numberOfSteps,  Number of steps of size deltaT from start time
+            
+            deltaT,         Evolution size of time
+    
+    """
     def __init__(self,initial,numberOfSteps,deltaT):
         self.initial = initial
         self.numberOfSteps = numberOfSteps

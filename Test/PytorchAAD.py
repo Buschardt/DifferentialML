@@ -12,7 +12,6 @@ x = torch.linspace(2,6,5).requires_grad_()
 y = torch.linspace(4,8,5).requires_grad_()
 torch.autograd.grad(f(x,y), [x,y], torch.ones(5,))
 
-
 #%%
 def genPaths(S0, K, T, sigma, r, nObs, nSteps, nSamples = 1):
     dt = T/nSteps
@@ -87,7 +86,7 @@ print("Delta from MC and AAD = ", mcGreeks(S0, K, T, sigma, r))
 #%%
 greeks = mcGreeks(S0, K, T, sigma, r)
 #%%
-plt.plot(r, greeks[4])
+plt.plot(r, greeks[0])
 
 #%%
 #delta comp
