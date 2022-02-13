@@ -12,9 +12,10 @@ from MonteCarlo.BrownianMotion import BrownianMotion
 from MonteCarlo.EulerSchemeFromProcessModel import EulerSchemeFromProcessModel
 
 time = TimeDiscretization(0,100,0.01)
-driver = BrownianMotion(time,100,1,0)
+driver = BrownianMotion(time,10000,1)
 driver.generateBM()
 model = BlackScholesModel(100,0.2,0.03)
 process = EulerSchemeFromProcessModel(model,driver,time)
 process.calculateProcess()
-process.discreteProcess
+a = process.discreteProcess
+

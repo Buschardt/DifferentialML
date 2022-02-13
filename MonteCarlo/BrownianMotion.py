@@ -28,6 +28,9 @@ class BrownianMotion():
         self.increments = np.random.normal(0,np.sqrt(self.TimeDiscretization.deltaT),(self.TimeDiscretization.getNumberOfSteps(),self.numberOfFactors,self.numberOfPaths))
     
     def getIncrement(self,timeIndex):
-        if not self.increments.size:
+        try:
+            return self.increments[timeIndex,:,:]
+        except:
+            print("generating proces")
             self.generateBM()
-        return self.increments[timeIndex,:,:]
+        

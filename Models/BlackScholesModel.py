@@ -15,7 +15,7 @@ class BlackScholesModel(AbstractProcessClass):
         self.riskFreeRate = riskFreeRate
         self.initialState = np.log(self.initialValue)
         self.drift = self.riskFreeRate - self.vol*self.vol/2
-        self.factorLoadings = [vol]
+        self.factorLoadings = np.array([vol])
         
     def getDrift(self,timeindex,state):
         return self.drift

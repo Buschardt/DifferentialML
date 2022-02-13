@@ -22,6 +22,5 @@ class EulerSchemeFromProcessModel:
             drift = self.model.getDrift(i,self.discreteProcess[i-1])
             factorLoadings = self.model.getFactorLoadings(i,self.discreteProcess[i-1])
             increments = self.stochasticDriver.getIncrement(i)
-            self.discreteProcess[i+1,:] = self.discreteProcess[i,:]+self.discreteProcess[i,:]*drift*self.timeDiscretization.deltaT
-            self.discreteProcess[i+1,:] = self.discreteProcess[i,:]+self.discreteProcess[i,:]*factorLoadings*self.timeDiscretization.deltaT
-        
+            self.discreteProcess[i+1,:] = self.discreteProcess[i,:]+drift*self.timeDiscretization.deltaT+factorLoadings*increments
+        self.discreteProcess = np.exp(self.discreteProcess)
