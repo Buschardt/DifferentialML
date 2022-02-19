@@ -3,9 +3,11 @@ import NeuralNetwork.NN as nn
 import OptionType.EuroCall as ec
 import Models.BlackScholesModel as bsm
 import MonteCarlo.TimeDiscretization as td
+
 import MonteCarlo.BrownianMotion as bm
 import MonteCarlo.EulerSchemeFromProcessModel as ep
 
+import torch
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import norm
@@ -26,24 +28,20 @@ r = 0.03
 
 #Generate data
 S0 = K + d * np.random.normal(0, 1, nSamples)
-#S0 = np.linspace(0,5,100000)
+S0 = np.linspace(0.01,3.5,nSamples)
+ST = np.empty(S0.shape[0])
 
 time = td.TimeDiscretization(0, 1, 1)
 driver = bm.BrownianMotion(time, nSamples, 1, 0)
 driver.generateBM()
-model = bsm.BlackScholesModel(S0, 0.2, 0.03)
-process = ep.EulerSchemeFromProcessModel(model,driver,time)
-process.calculateProcess()
-S = process.discreteProcess
-
-n = S.shape[0] - 1
-
-S0 = S[0,:]
-ST = S[n,:]
+model = bsm.BlackScholesModel(0.2, 0.03)
+process = ep.EulerSchemeFromProcessModel(model,driver,time, None)
+for i in range(0,S0.shape[0]):
+    ST[i] = process.calculateProcess(S0[i], i)
 
 #remove nan
-S0 = S0[~np.isnan(S0)]
-ST = ST[~np.isnan(ST)]
+#S0 = S0[~np.isnan(S0)]
+#ST = ST[~np.isnan(ST)]
 
 Call = ec.EuroCall(ST, K, dt, r)
 C = Call.payoff()
@@ -54,7 +52,7 @@ net.generateData(S0, C)
 net.train()
 
 #predict
-S0_test = np.linspace(0, 5, 100)
+S0_test = np.linspace(0, 3.5, 100)
 y_test = net.predict(S0_test)
 
 #compare with true Black-Scholes price
