@@ -1,143 +1,69 @@
 #%%
-import Models
-import NN
+import NeuralNetwork.NN as nn
+import OptionType.EuroCall as ec
+import Models.BlackScholesModel as bsm
+import MonteCarlo.TimeDiscretization as td
+import MonteCarlo.BrownianMotion as bm
+import MonteCarlo.EulerSchemeFromProcessModel as ep
 
+import matplotlib.pyplot as plt
 import numpy as np
+from scipy.stats import norm
 #%%
-#test
-print(Models.bsDelta(100, 110, 0.05, 1))
+def C_BS(S0, K, T, sigma, r):
+    d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
+    d2 = d1 - sigma * np.sqrt(T)
 
+    C = norm.cdf(d1)*S0 - norm.cdf(d2)*K*np.exp(-r*T)
+    return C
 #%%
-##BS European Call
-# simulation set sizes to perform
-sizes = [1024, 8192]
+nSamples = 50000
+dt = 1
+sigma = 0.2
+K = 1.1
+d = 1
+r = 0.03
 
-# show delta?
-showDeltas = True
+#Generate data
+S0 = K + d * np.random.normal(0, 1, nSamples)
+#S0 = np.linspace(0,5,100000)
 
-# seed
-# simulSeed = 1234
-simulSeed = np.random.randint(0, 10000) 
-print("using seed %d" % simulSeed)
-weightSeed = None
+time = td.TimeDiscretization(0, 1, 1)
+driver = bm.BrownianMotion(time, nSamples, 1, 0)
+driver.generateBM()
+model = bsm.BlackScholesModel(S0, 0.2, 0.03)
+process = ep.EulerSchemeFromProcessModel(model,driver,time)
+process.calculateProcess()
+S = process.discreteProcess
 
-# number of test scenarios
-nTest = 100    
+n = S.shape[0] - 1
 
-# go
-generator = Models.BlackScholes()
-xAxis, yTest, dydxTest, vegas, values, deltas = \
-    NN.test(generator, sizes, nTest, simulSeed, None, weightSeed)
+S0 = S[0,:]
+ST = S[n,:]
 
-#%%
-# show predicitions
-NN.graph("Black & Scholes", values, xAxis, "", "values", yTest, sizes, True)
+#remove nan
+S0 = S0[~np.isnan(S0)]
+ST = ST[~np.isnan(ST)]
 
-# show deltas
-if showDeltas:
-    NN.graph("Black & Scholes", deltas, xAxis, "", "deltas", dydxTest, sizes, True)
+Call = ec.EuroCall(ST, K, dt, r)
+C = Call.payoff()
 
-#%%
-##Bachelier Basket dim 1
-# basket / bachelier dimension
-basketDim = 1
+#Define and train net
+net = nn.NeuralNet(1,1,6,20)
+net.generateData(S0, C)
+net.train()
 
-# simulation set sizes to perform
-sizes = [1024, 8192]
+#predict
+S0_test = np.linspace(0, 5, 100)
+y_test = net.predict(S0_test)
 
-# show delta?
-showDeltas = True
-deltidx = 0 # show delta to first stock
+#compare with true Black-Scholes price
+truePrice = C_BS(S0_test, K, 1, sigma, r)
 
-# seed
-# simulSeed = 1234
-simulSeed = np.random.randint(0, 10000) 
-print("using seed %d" % simulSeed)
-testSeed = None
-weightSeed = None
-    
-# number of test scenarios
-nTest = 4096    
-
-# go
-generator = Models.Bachelier(basketDim)
-xAxis, yTest, dydxTest, vegas, values, deltas = \
-    NN.test(generator, sizes, nTest, simulSeed, None, weightSeed)
-
-#%%
-# show predicitions
-NN.graph("Bachelier dimension %d" % basketDim, values, xAxis, "", "values", yTest, sizes, True)
-
-# show deltas
-if showDeltas:
-    NN.graph("Bachelier dimension %d" % basketDim, deltas, xAxis, "", "deltas", dydxTest, sizes, True)
-
-#%%
-##Bachelier Basket dim 7
-# basket / bachelier dimension
-basketDim = 7
-
-# simulation set sizes to perform
-sizes = [4096, 8192, 16384]
-
-# show delta?
-showDeltas = True
-deltidx = 0 # show delta to first stock
-
-# seed
-# simulSeed = 1234
-simulSeed = np.random.randint(0, 10000) 
-print("using seed %d" % simulSeed)
-testSeed = None
-weightSeed = None
-    
-# number of test scenarios
-nTest = 4096    
-
-# go
-generator = Models.Bachelier(basketDim)
-xAxis, yTest, dydxTest, vegas, values, deltas = \
-    NN.test(generator, sizes, nTest, simulSeed, None, weightSeed)
-
-#%%
-# show predicitions
-NN.graph("Bachelier dimension %d" % basketDim, values, xAxis, "", "values", yTest, sizes, True)
-
-# show deltas
-if showDeltas:
-    NN.graph("Bachelier dimension %d" % basketDim, deltas, xAxis, "", "deltas", dydxTest, sizes, True)
-
-#%%
-##Bachelier Basket dim 20
-# basket / bachelier dimension
-basketDim = 20
-
-# simulation set sizes to perform
-sizes = [4096, 8192, 16384]
-
-# show delta?
-showDeltas = True
-deltidx = 0 # show delta to first stock
-
-# seed
-# simulSeed = 1234
-simulSeed = np.random.randint(0, 10000) 
-print("using seed %d" % simulSeed)
-testSeed = None
-weightSeed = None
-    
-# number of test scenarios
-nTest = 4096    
-
-# go
-generator = Models.Bachelier(basketDim)
-xAxis, yTest, dydxTest, vegas, values, deltas = \
-    NN.test(generator, sizes, nTest, simulSeed, None, weightSeed)
-
-#%%
-# show predicitions
-NN.graph("Bachelier dimension %d" % basketDim, values, xAxis, "", "values", yTest, sizes, True)
-
-# show deltas
-if showDeltas:
-    NN.graph("Bachelier dimension %d" % basketDim, deltas, xAxis, "", "deltas", dydxTest, sizes, True)
+plt.plot(S0, C, 'o', color='grey', label='Simulated payoffs', alpha = 0.3)
+plt.plot(S0_test, y_test, color='red', label='NN approximation')
+plt.plot(S0_test, truePrice, color='black', label='Black-Scholes price')
+plt.legend()
+plt.title('Standard ML - price approximation')
+plt.show()
+#plt.savefig('NNtest.png')
