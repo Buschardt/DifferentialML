@@ -102,7 +102,9 @@ def get_gradients(variable):
 a = Variable(1000)
 b = Variable(2)
 c = Variable(2)
-
+a.localGradients
+y = a*b
+y.localGradients
 def f(a, b, c):
     return a*a
 y = f(a,b,c)
