@@ -25,18 +25,21 @@ class EulerSchemeFromProcessModel:
             factorLoadings = self.model.getFactorLoadings(0,0)
             increments = self.stochasticDriver.getIncrement(pathNumber)
             return torch.exp(torch.log(self.initialState) + torch.cumsum(drift * self.timeDiscretization.deltaT + factorLoadings * increments, axis=0))
+            #return torch.exp(torch.add(self.discreteProcess[0],torch.cumsum(torch.add(drift*self.timeDiscretization.deltaT,torch.mul(factorLoadings,increments)),dim=0)))
+            #self.discreteProcess[1:] = torch.add(self.initialState,torch.cumsum(torch.add(drift*self.timeDiscretization.deltaT,torch.mul(factorLoadings,increments)),dim=0))    
+            #return torch.exp(self.discreteProcess)
         else:
             raise NotImplementedError()
 
-    def pathPayoff(self, initialState, pathNumber):
+    def pathPayoff(self, initialState, riskFreeRate, timeToMaturity, pathNumber):
         S = self.calculateProcess(initialState, pathNumber)
-        V = self.product.payoff(S,self.model.riskFreeRate,self.timeDiscretization.deltaT*self.timeDiscretization.numberOfSteps)
+        V = self.product.payoff(S, riskFreeRate, timeToMaturity)
 
         return V
     
-    def calculateDerivs(self, initialState, pathNumber):
+    def calculateDerivs(self, initialState, riskFreeRate, timeToMaturity, pathNumber):
         initialState = torch.tensor(initialState).requires_grad_()
-        f = self.pathPayoff(initialState, pathNumber)[-1]
+        f = self.pathPayoff(initialState, riskFreeRate, timeToMaturity, pathNumber)[-1]
         grad = torch.autograd.grad(f, [initialState], allow_unused=True)
             
         return grad[0]
