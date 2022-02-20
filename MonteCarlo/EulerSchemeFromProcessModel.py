@@ -30,7 +30,7 @@ class EulerSchemeFromProcessModel:
 
     def pathPayoff(self, initialState, pathNumber):
         S = self.calculateProcess(initialState, pathNumber)
-        V = self.product.payoff(S)
+        V = self.product.payoff(S,self.model.riskFreeRate,self.timeDiscretization.deltaT*self.timeDiscretization.numberOfSteps)
 
         return V
     
