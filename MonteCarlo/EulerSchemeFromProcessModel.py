@@ -25,9 +25,6 @@ class EulerSchemeFromProcessModel:
             factorLoadings = self.model.getFactorLoadings(0,0)
             increments = self.stochasticDriver.getIncrement(pathNumber)
             return torch.exp(torch.log(self.initialState) + torch.cumsum(drift * self.timeDiscretization.deltaT + factorLoadings * increments, axis=0))
-            #return torch.exp(torch.add(self.discreteProcess[0],torch.cumsum(torch.add(drift*self.timeDiscretization.deltaT,torch.mul(factorLoadings,increments)),dim=0)))
-            #self.discreteProcess[1:] = torch.add(self.initialState,torch.cumsum(torch.add(drift*self.timeDiscretization.deltaT,torch.mul(factorLoadings,increments)),dim=0))    
-            #return torch.exp(self.discreteProcess)
         else:
             raise NotImplementedError()
 

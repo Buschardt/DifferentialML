@@ -13,11 +13,11 @@ class Option:
         self.optType = optType
         self.maxRHS = torch.tensor(0.)
         
-    def payoff(self,terminalValue):
+    def payoff(self,terminalValue,riskFreeRate,timeToMaturity):
         if self.optType.lower() == 'call':
-            return torch.maximum(terminalValue-self.strike,self.maxRHS)
+            return torch.exp(-riskFreeRate*timeToMaturity)*torch.maximum(terminalValue-self.strike,self.maxRHS)
         elif self.optType.lower() == 'put':
-            return torch.maximum(self.strike-terminalValue,self.maxRHS)
+            return torch.exp(-riskFreeRate*timeToMaturity)*torch.maximum(self.strike-terminalValue,self.maxRHS)
         else:
             raise ValueError("Option type not recognized")
             
