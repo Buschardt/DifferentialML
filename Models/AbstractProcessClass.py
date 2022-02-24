@@ -18,3 +18,5 @@ class AbstractProcessClass(ABC):
     @abstractmethod
     def getNumberOfFactors(self):
         pass
+    
+    
