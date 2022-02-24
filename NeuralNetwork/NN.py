@@ -52,32 +52,42 @@ class NeuralNet(nn.Module):
             self.x_mean, self.x_std, self.y_mean, self.y_std = pre.normalize(self.X, self.y, self.dydx)
 
         #shaped for NN
-        self.X_scaled = self.X_scaled.view(self.nSamples,1).float()
-        self.y_scaled = self.y_scaled.view(self.nSamples,1).float()
+        if self.X.dim() == 1:
+            nInputs = 1
+        else:
+            nInputs = self.X.shape[1]
+        self.X_scaled = self.X_scaled.view(self.nSamples, nInputs).float()
+        self.y_scaled = self.y_scaled.view(self.nSamples, 1).float()
         if type(self.dydx) != type(None):
-            self.dydx_scaled = self.dydx_scaled.view(self.nSamples,1).float()
+            self.dydx_scaled = self.dydx_scaled.view(self.nSamples, nInputs).float()
 
     #Train Net
-    def train(self, n_epochs = 3, batch_size=10, alpha=0.25, beta=0.75):
+    def train(self, n_epochs = 3, batch_size=10, alpha=0.25, beta=0.75, lr=0.001):
         #check if data is scaled
         if self.X_scaled == None:
             self.prepare()
 
         if self.differential == False:
-            Training.trainingLoop(self.X_scaled, self.y_scaled, n_epochs, batch_size, self)
+            Training.trainingLoop(self.X_scaled, self.y_scaled, n_epochs, batch_size, self, lr=lr)
         elif self.differential == True:
-            Training.diffTrainingLoop(self.X_scaled, self.y_scaled, self.dydx_scaled, n_epochs, batch_size, self, alpha, beta, self.lambda_j)
+            Training.diffTrainingLoop(self.X_scaled, self.y_scaled, self.dydx_scaled, n_epochs, batch_size, self, alpha, beta, self.lambda_j, lr=lr)
 
 
     #Predict
     def predict(self, X_test, gradients=False):
+        #set number of variables
+        if X_test.ndim == 1:
+            nTest = 1
+        else:
+            nTest = X_test.shape[1]
         #Test if tensor
         if torch.is_tensor(X_test) == False:
-            X_test = torch.tensor(X_test).view(X_test.shape[0],1).float()
+            X_test = torch.tensor(X_test).view(X_test.shape[0], nTest).float()
 
         #scale
         X_scaled = (X_test - self.x_mean) / self.x_std
-
+        X_scaled = X_scaled.float()
+        
         #Predict on scaled X
         y_scaled = self(X_scaled)
 

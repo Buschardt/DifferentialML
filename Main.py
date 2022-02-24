@@ -1,6 +1,5 @@
 #%%
 import NeuralNetwork.NN as nn
-import OptionType.EuroCall as ec
 import Models.BlackScholesModel as bsm
 import MonteCarlo.TimeDiscretization as td
 import MonteCarlo.BrownianMotion as bm
@@ -23,20 +22,23 @@ def deltaBS(S0, K, T, sigma, r):
     d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
     return norm.cdf(d1)
 #%%
-nSamples = 10000
+nSamples = 20000
 dt = 1
 sigma = 0.2
 K = 1.1
 d = 1
 r = 0.03
 
+S0_0 = 0.01
+S0_T = 2
+
 #Generate data
-S0 = K + d * np.random.normal(0, 1, nSamples)
-S0 = np.linspace(0.01,3.5,nSamples)
+#S0 = K + d * np.random.normal(0, 1, nSamples)
+S0 = np.linspace(S0_0, S0_T, nSamples)
 ST = np.empty(S0.shape[0])
 delta = np.empty(S0.shape[0])
 
-product = Option(1)
+product = Option(K)
 time = td.TimeDiscretization(0, 1, 1)
 driver = bm.BrownianMotion(time, nSamples, 1, 0)
 driver.generateBM()
@@ -45,19 +47,18 @@ process = ep.EulerSchemeFromProcessModel(model,driver,time, product)
 for i in range(0,S0.shape[0]):
     S0_tensor = torch.tensor(S0[i])
     ST[i] = process.calculateProcess(S0_tensor, i)
-    delta[i] = process.calculateDerivs(S0_tensor, i)
+    delta[i] = process.calculateDerivs(S0_tensor, torch.tensor(r), torch.tensor(1.),  i)
 
+C = product.payoff(torch.tensor(ST), torch.tensor(r), torch.tensor(1.))
 
-Call = ec.EuroCall(ST, K, dt, r)
-C = Call.payoff()
 
 #Define and train net
 net = nn.NeuralNet(1,1,6,20, differential=True)
 net.generateData(S0, C, delta)
-net.train(alpha=0.2, beta=0.8)
+net.train(n_epochs = 10, batch_size=100, alpha=0.25, beta=0.75, lr=0.001)
 
 #predict
-S0_test = np.linspace(0, 3.5, 100)
+S0_test = np.linspace(S0_0, S0_T, 100)
 y_test, dydx_test = net.predict(S0_test, True)
 
 #compare with true Black-Scholes price

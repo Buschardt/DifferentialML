@@ -3,8 +3,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 #Regular training loop
-def trainingLoop(X, y, n_epochs, batch_size, NeuralNet):
-    optimizer = optim.Adam(NeuralNet.parameters(), lr=0.001)
+def trainingLoop(X, y, n_epochs, batch_size, NeuralNet, lr=0.001):
+    optimizer = optim.Adam(NeuralNet.parameters(), lr=lr)
 
     for epoch in range(n_epochs):
 
@@ -24,7 +24,7 @@ def trainingLoop(X, y, n_epochs, batch_size, NeuralNet):
 ##Differential Learning Functions
 #Get gradients of NN w.r.t. inputs
 def backprop(X, net):
-    gradients = torch.autograd.grad(net(X), X, grad_outputs=torch.ones(X.shape[0], X.shape[1]), create_graph=True, retain_graph=True, allow_unused=True)
+    gradients = torch.autograd.grad(net(X), X, grad_outputs=torch.ones(X.shape[0], 1), create_graph=True, retain_graph=True, allow_unused=True)
     return gradients
 
 #Define custom loss function with differential regularization
@@ -34,8 +34,8 @@ def diffReg(labels, predictions, derivLabels, derivPredictions, alpha, beta, lam
     return loss_values + loss_derivs
 
 #Training loop with differential regularization
-def diffTrainingLoop(X, y_values, y_derivs, n_epochs, batch_size, NeuralNet, alpha, beta, lambda_j=1):
-    optimizer = optim.Adam(NeuralNet.parameters(), lr=0.001)
+def diffTrainingLoop(X, y_values, y_derivs, n_epochs, batch_size, NeuralNet, alpha, beta, lambda_j=1, lr=0.001):
+    optimizer = optim.Adam(NeuralNet.parameters(), lr=lr)
 
     for epoch in range(n_epochs):
 

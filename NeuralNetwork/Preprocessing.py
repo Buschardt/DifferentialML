@@ -17,7 +17,7 @@ def normalize(X, y, dydx = None):
     else:
         lambda_j = None
 
-    return X, y, dydx, lambda_j, X_mean.item(), X_std.item(), y_mean.item(), y_std.item()
+    return X, y, dydx, lambda_j, X_mean[0], X_std[0], y_mean.item(), y_std.item()
 
 def unscale(X, y, dydx, X_mean, X_std, y_mean, y_std):
     X = X_mean + X_std * X

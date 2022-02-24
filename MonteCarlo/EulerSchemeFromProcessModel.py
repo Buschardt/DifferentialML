@@ -24,10 +24,11 @@ class EulerSchemeFromProcessModel:
             factorLoadings = self.model.getFactorLoadings(0,0)
             increments = self.stochasticDriver.getIncrement(pathNumber)
             return torch.exp(torch.log(self.initialState) + torch.cumsum(drift * self.timeDiscretization.deltaT + factorLoadings * increments, axis=0))
+
         else:
             raise NotImplementedError()
 
-    def pathPayoff(self, initialState, pathNumber):
+    def pathPayoff(self, initialState, riskFreeRate, timeToMaturity, pathNumber):
         S = self.calculateProcess(initialState, pathNumber)
         V = self.product.payoff(S,
                                 self.model.riskFreeRate,
@@ -44,6 +45,6 @@ class EulerSchemeFromProcessModel:
             print(f)
             secgrads = torch.autograd.grad(grad[0],[initialState])
             print(secgrads)
-            
         return grad
+
     
