@@ -7,6 +7,7 @@ import MonteCarlo.BrownianMotion as bm
 import MonteCarlo.EulerSchemeFromProcessModel as ep
 from Products.EuropeanOption import Option
 
+
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,8 +24,8 @@ def deltaBS(S0, K, T, sigma, r):
     d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
     return norm.cdf(d1)
 #%%
-nSamples = 1000
-dt = 100
+nSamples = 10000
+dt = 10
 T = 1
 sigma = 0.2
 K = 1
@@ -36,25 +37,19 @@ S0 = K + d * np.random.normal(0, 1, nSamples)
 #S0 = np.linspace(0.01,3.5,nSamples)
 ST = np.empty(S0.shape[0])
 delta = np.empty(S0.shape[0])
-vega = np.empty(S0.shape[0])
-rff = np.empty(S0.shape[0])
 product = Option(K)
 time = td.TimeDiscretization(0, dt, T/dt)
 driver = bm.BrownianMotion(time, nSamples, 1)
 driver.generateBM()
 model = bsm.BlackScholesModel(sigma, r)
-model.setDerivParameters(['vol','riskFreeRate'])
 process = ep.EulerSchemeFromProcessModel(model,driver,time, product)
 for i in range(0,S0.shape[0]):
     S0_tensor = torch.tensor(S0[i])
     ST[i] = process.calculateProcess(S0_tensor, i)[-1]
     derivs = process.calculateDerivs(S0_tensor, i)
     delta[i] = derivs[0]
-    vega[i] = derivs[1]
-    rff[i] = derivs[2]
 
-
-Call = ec.EuroCall(ST, K, dt, r)
+Call = ec.EuroCall(ST, K, T, r)
 C = Call.payoff()
 
 #Define and train net

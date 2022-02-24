@@ -28,7 +28,7 @@ class EulerSchemeFromProcessModel:
         else:
             raise NotImplementedError()
 
-    def pathPayoff(self, initialState, riskFreeRate, timeToMaturity, pathNumber):
+    def pathPayoff(self, initialState, pathNumber):
         S = self.calculateProcess(initialState, pathNumber)
         V = self.product.payoff(S,
                                 self.model.riskFreeRate,
