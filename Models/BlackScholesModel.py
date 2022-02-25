@@ -8,7 +8,7 @@ Created on Mon Jan 17 20:31:05 2022
 from torch.autograd import Variable
 import torch
 
-from AbstractProcessClass import AbstractProcessClass
+from .AbstractProcessClass import AbstractProcessClass
 
 class BlackScholesModel(AbstractProcessClass):
     def __init__(self,vol,riskFreeRate):
