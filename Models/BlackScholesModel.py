@@ -7,6 +7,8 @@ Created on Mon Jan 17 20:31:05 2022
 
 from torch.autograd import Variable
 import torch
+import numpy as np
+from scipy.stats import norm
 
 from .AbstractProcessClass import AbstractProcessClass
 
@@ -39,4 +41,40 @@ class BlackScholesModel(AbstractProcessClass):
     def getParameters(self):
         return {'vol' : self.vol,
                 'riskFreeRate': self.riskFreeRate}
+
+#Analytics
+def delta(S0, K, T, sigma, r):
+    d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
+    return norm.cdf(d1)
+
+def vega(S0, K, T, sigma, r):
+    d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
+    return S0 * norm.pdf(d1) * np.sqrt(T)
+
+def theta(S0, K, T, sigma, r):
+    d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
+    d2 = d1 - sigma * np.sqrt(T)
     
+    theta = -((S0 * norm.pdf(d1) * sigma)/(2*np.sqrt(T))) - r * K * np.exp(-r*T) * norm.cdf(d2)
+    return theta
+
+def rho(S0, K, T, sigma, r):
+    d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
+    d2 = d1 - sigma * np.sqrt(T)
+    
+    rho = K * T * np.exp(-r*T) * norm.cdf(d2)
+    return rho
+
+def C(S0, K, T, sigma, r):
+    d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
+    d2 = d1 - sigma * np.sqrt(T)
+
+    C = norm.cdf(d1)*S0 - norm.cdf(d2)*K*np.exp(-r*T)
+    return C
+
+def P(S0, K, T, sigma, r):
+    d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
+    d2 = d1 - sigma * np.sqrt(T)
+
+    P = norm.cdf(-d2)*K*np.exp(-r*T) - norm.cdf(-d1)*S0
+    return P
