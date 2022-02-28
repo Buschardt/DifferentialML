@@ -6,18 +6,17 @@ import MonteCarlo.BrownianMotion as bm
 import MonteCarlo.EulerSchemeFromProcessModel as ep
 from Products.EuropeanOption import Option
 
-
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
 #%%
-nSamples = 20000
+nSamples = 25000
 dt = 10
 T = 1.
 sigma = 0.2 + np.random.normal(0, 0.025, nSamples)
 K = 1.
 d = 0.25
-r = 0.03
+r = 0.03 #+ np.random.normal(0, 0.0025, nSamples)
 
 #Generate data
 S0 = K + d * np.random.normal(0, 1, nSamples)
@@ -28,23 +27,20 @@ C = np.empty(S0.shape[0])
 X = np.c_[S0, sigma]
 greeks = np.empty((S0.shape[0], 2))
 
-
-product = Option(K)
+product = Option(K, 'put')
 time = td.TimeDiscretization(0, dt, T/dt)
 driver = bm.BrownianMotion(time, nSamples, 1)
 driver.generateBM()
+
 for i in range(0, S0.shape[0]):
     model = bsm.BlackScholesModel(sigma[i], r)
     model.setDerivParameters(['vol'])
-    process = ep.EulerSchemeFromProcessModel(model,driver,time, product)    
+    process = ep.EulerSchemeFromProcessModel(model,driver,time, product)
     S0_tensor = torch.tensor(S0[i])
     S = process.calculateProcess(S0_tensor, i)
     ST[i] = S[-1]
-    derivs = process.calculateDerivs(S0_tensor, i)
-    greeks[i, 0] = derivs[0] #Delta
-    greeks[i, 1] = derivs[1] #Vega
+    greeks[i, :] = process.calculateDerivs(S0_tensor, i)
     C[i] = product.payoff(torch.tensor(S), torch.tensor(r), torch.tensor(T))
-
 
 #Define and train net
 net = nn.NeuralNet(2, 1, 6, 60, differential=True)
@@ -58,9 +54,9 @@ X_test = np.c_[S0_test, sigma_test]
 y_test, dydx_test = net.predict(X_test, True)
 
 #compare with true Black-Scholes price
-truePrice = bsm.C(S0_test, K, T, sigma_test, r)
-trueDelta = bsm.delta(S0_test, K, T, sigma_test, r)
-trueVega = bsm.vega(S0_test, K, T, sigma_test, r)
+truePrice = bsm.P(S0_test, K, T, sigma_test, r)
+trueDelta = bsm.delta(S0_test, K, T, sigma_test, r, 'Put')
+trueVega = bsm.vega(S0_test, K, T, sigma_test, r, 'Put')
 
 plt.figure(figsize=[14,8])
 plt.subplot(1, 3, 1)
@@ -90,4 +86,4 @@ plt.ylabel('vega')
 plt.legend()
 plt.title('Differential ML - Vega approximation')
 plt.show()
-#plt.savefig('DiffNNTest.png')
+#plt.savefig('DiffNNTest3.png')
