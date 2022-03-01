@@ -16,6 +16,7 @@ class EulerSchemeFromProcessModel:
         self.timeDiscretization = timeDiscretization
         self.discreteProcess = torch.empty((self.timeDiscretization.numberOfSteps+1))
         self.product = product
+        self.checkCompatability()
 
     def calculateProcess(self,initialState,pathNumber):
         self.initialState = initialState
@@ -24,7 +25,6 @@ class EulerSchemeFromProcessModel:
             factorLoadings = self.model.getFactorLoadings(0,0)
             increments = self.stochasticDriver.getIncrement(pathNumber)
             return torch.exp(torch.log(self.initialState) + torch.cumsum(drift * self.timeDiscretization.deltaT + factorLoadings * increments, axis=0))
-
         else:
             raise NotImplementedError()
 
@@ -39,12 +39,16 @@ class EulerSchemeFromProcessModel:
     def calculateDerivs(self, initialState, pathNumber,second = False):
         initialState = torch.tensor(initialState).requires_grad_()
         self.model.setAutoGradParams()
+        self.model.setDrift()
         f = self.pathPayoff(initialState, pathNumber)
         grad = torch.autograd.grad(f, [initialState]+self.model.getDerivParameters(), allow_unused=True, create_graph=second)
         if second:
-            print(f)
             secgrads = torch.autograd.grad(grad[0],[initialState])
-            print(secgrads)
+            return grad, secgrads
         return grad
-
+    
+    def checkCompatability(self):
+        if self.model.getNumberOfFactors() != self.stochasticDriver.numberOfFactors:
+            raise ValueError("Number of factors in model and stochatic Driver must be equal")
+        
     

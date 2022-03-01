@@ -26,21 +26,29 @@ class BrownianMotion():
         
     def generateBM(self):
         if self.seed: np.random.seed(self.seed)
-        self.increments = torch.normal(0,np.sqrt(self.TimeDiscretization.deltaT),(self.TimeDiscretization.getNumberOfSteps(),self.numberOfPaths))
+        self.increments = torch.normal(0,
+                                       np.sqrt(self.TimeDiscretization.deltaT),
+                                       (self.numberOfPaths,self.TimeDiscretization.getNumberOfSteps(),self.numberOfFactors))
+        
+    def generateCorrelatedBM(self,corrMatrix):
+        self.generateBM()
+        self.increments = self.increments @ torch.linalg.cholesky(corrMatrix)
+
     
     def getIncrement(self,pathNumber = None):
         if pathNumber == None:
             try:
                 return self.increments
             except:
-                print("generating proces")
+                print("generating standard Brownian proces")
                 self.generateBM()
         else:
             try:
-                return self.increments[:,pathNumber]
+                return self.increments[pathNumber,:,:]
             except:
-                print("generating proces")
+                print("generating standard Brownian proces")
                 self.generateBM()
-        
+    
+
         
     

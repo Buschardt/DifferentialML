@@ -5,7 +5,9 @@ import Models.BlackScholesModel as bsm
 import MonteCarlo.TimeDiscretization as td
 import MonteCarlo.BrownianMotion as bm
 import MonteCarlo.EulerSchemeFromProcessModel as ep
-from Products.EuropeanOption import Option
+import Models.BlackScholesBasketModel as bsbm
+import Utils.LSMGenerator as lsm
+from Products.EuropeanOption import *
 
 
 import torch
@@ -24,30 +26,33 @@ def deltaBS(S0, K, T, sigma, r):
     d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
     return norm.cdf(d1)
 #%%
-nSamples = 10000
-dt = 10
-T = 1
+nSamples = 100
+dt = 1
+T = 1.
 sigma = 0.2
-K = 1
-d = 0.2
+K = 1.
+d = 0.25
 r = 0.03
-
 #Generate data
 S0 = K + d * np.random.normal(0, 1, nSamples)
 #S0 = np.linspace(0.01,3.5,nSamples)
 ST = np.empty(S0.shape[0])
+vega = np.empty(S0.shape[0])
 delta = np.empty(S0.shape[0])
 product = Option(K)
 time = td.TimeDiscretization(0, dt, T/dt)
-driver = bm.BrownianMotion(time, nSamples, 1)
+driver = bm.BrownianMotion(time, nSamples, 1,1234)
 driver.generateBM()
 model = bsm.BlackScholesModel(sigma, r)
+model.setDerivParameters(['vol'])
 process = ep.EulerSchemeFromProcessModel(model,driver,time, product)
 for i in range(0,S0.shape[0]):
     S0_tensor = torch.tensor(S0[i])
     ST[i] = process.calculateProcess(S0_tensor, i)[-1]
     derivs = process.calculateDerivs(S0_tensor, i)
     delta[i] = derivs[0]
+    vega[i] = derivs[1]
+
 
 Call = ec.EuroCall(ST, K, T, r)
 C = Call.payoff()
@@ -85,3 +90,40 @@ plt.legend()
 plt.title('Differential ML - Delta approximation')
 plt.show()
 #plt.savefig('NNTest.png')
+
+
+
+##--------------------------------------------------------------------------------------------
+    
+nSamples = 10
+factors = 2
+dt = 100
+T = 1.
+sigma = 0.2
+K = 1.
+d = 0.25
+r = 0.03
+#Generate data
+S0 = lsm.LSMGenerator(factors*[1.], d, factors).LSMspots(nSamples)
+#S0 = K + d * np.random.normal(0, 1, nSamples)
+#S0 = np.linspace(0.01,3.5,nSamples)
+ST = np.empty(S0.shape)
+vega = np.empty(S0.shape)
+delta = np.empty(S0.shape)
+product = BasketOption(K, factors, factors*[1/factors])
+time = td.TimeDiscretization(0, dt, T/dt)
+driver = bm.BrownianMotion(time, nSamples, factors,1234)
+driver.generateBM()
+driver.generateCorrelatedBM(torch.tensor([[1,0.5],[0.5,1]]))
+model = bsbm.MultiAssetBlackScholes(r, factors, [.2,.2])
+process = ep.EulerSchemeFromProcessModel(model,driver,time, product)
+for i in range(0,S0.shape[0]):
+    S0_tensor = torch.tensor(S0[i])
+    a = process.calculateProcess(S0_tensor, i)
+    ST[i] = process.calculateProcess(S0_tensor, i)[-1]
+    derivs = process.calculateDerivs(S0_tensor, i)
+    print(derivs[0][0])
+    print(derivs[0][1])
+
+
+
