@@ -30,6 +30,11 @@ class BlackScholesModel(AbstractProcessClass):
     def setAutoGradParams(self):
         for _ in self.derivParameters:
             setattr(self, _, torch.tensor(getattr(self, _)).requires_grad_())
+            if _ =='vol':
+                self.setDrift()
+                self.setFactorLoadings()
+            if _ == 'riskFreeRate':
+                self.setDrift()
         
     def setDerivParameters(self,derivList=[]):
         self.derivParameters = derivList
@@ -41,6 +46,12 @@ class BlackScholesModel(AbstractProcessClass):
     def getParameters(self):
         return {'vol' : self.vol,
                 'riskFreeRate': self.riskFreeRate}
+
+    def setDrift(self):
+        self.drift = self.riskFreeRate - .5*self.vol*self.vol
+        
+    def setFactorLoadings(self):
+        self.factorLoadings = self.vol
         
 
 #Analytics
