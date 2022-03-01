@@ -6,8 +6,10 @@ Created on Mon Jan 17 20:31:05 2022
 """
 
 import torch
+import numpy as np
+from scipy.stats import norm
 
-from AbstractProcessClass import AbstractProcessClass
+from .AbstractProcessClass import AbstractProcessClass
 
 class BlackScholesModel(AbstractProcessClass):
     def __init__(self,vol,riskFreeRate):
@@ -28,11 +30,6 @@ class BlackScholesModel(AbstractProcessClass):
     def setAutoGradParams(self):
         for _ in self.derivParameters:
             setattr(self, _, torch.tensor(getattr(self, _)).requires_grad_())
-            if _ =='vol':
-                self.setDrift()
-                self.setFactorLoadings()
-            if _ == 'riskFreeRate':
-                self.setDrift()
         
     def setDerivParameters(self,derivList=[]):
         self.derivParameters = derivList
@@ -44,13 +41,8 @@ class BlackScholesModel(AbstractProcessClass):
     def getParameters(self):
         return {'vol' : self.vol,
                 'riskFreeRate': self.riskFreeRate}
-    
-    def setDrift(self):
-        self.drift = self.riskFreeRate - .5*self.vol*self.vol
         
-    def setFactorLoadings(self):
-        self.factorLoadings = self.vol
-        
+
 #Analytics
 def delta(S0, K, T, sigma, r, type='Call'):
     d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
@@ -98,5 +90,5 @@ def P(S0, K, T, sigma, r):
     d2 = d1 - sigma * np.sqrt(T)
 
     P = norm.cdf(-d2)*K*np.exp(-r*T) - norm.cdf(-d1)*S0
+
     return P
-    
