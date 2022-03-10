@@ -42,11 +42,14 @@ def featureMatrix(state):
     return X
 
 #Simulates Black-Scholes paths and calculates exercise value at each t
-def genPaths(S, K, sigma, r, dts, dW):
-    dt = dts.shape[1]
-    r = r * np.arange(1/dt, 1+1/dt, 1/dt)
+def genPaths(S, K, sigma, r, dts, dW, type='Call'):
+    #dt = dts.shape[1]
+    #r = r * np.arange(1/dt, 1+1/dt, 1/dt)
     St = S * torch.cumprod(torch.exp((r-sigma**2/2)*dts + sigma*torch.sqrt(dts)*dW), axis=1)
-    Et = torch.exp(-r*1)*torch.maximum(St-K, torch.tensor(0))
+    if type == 'Call':
+        Et = torch.maximum(St-K, torch.tensor(0))
+    elif type == 'Put':
+        Et = torch.maximum(K-St, torch.tensor(0))
     return St, Et
 
 #Trains Linear models for each timepoint t used to estimate the continuation values.
@@ -76,11 +79,13 @@ def LSM_train(St, Et):
     return modelw, modelb
 
 #Longstaff-Schwartz algorithm using estimated models from LSM_train
-def LSM(S, K, sigma, r, dts, dW, w, b):
+def LSM(S, K, sigma, r, dts, dW, w, b, type='Call'):
 
-    St, Et = genPaths(S, K, sigma, r, dts, dW)
+    St, Et = genPaths(S, K, sigma, r, dts, dW, type=type)
 
     n_excerises = St.shape[1]
+    discountFactor = np.exp(-r * n_excerises)
+
     continuationValues = []
     exercises = []
     previous_exercises = 0
@@ -95,7 +100,7 @@ def LSM(S, K, sigma, r, dts, dW, w, b):
         exercises.append(exercise)
         exercise = exercise * (1-previous_exercises)
         previous_exercises += exercise
-        npv += exercise*Et[:,i]
+        npv += exercise*Et[:,i] * discountFactor
     
     #Last exercise date
     inMoney = torch.greater(Et[:,-1], 0.).float()

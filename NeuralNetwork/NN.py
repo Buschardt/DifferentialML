@@ -16,12 +16,12 @@ class NeuralNet(nn.Module):
         #Input layer
         self.layers.add_module(f'fc{0}', nn.Linear(dimInput, nHiddenNeurons))
         #Input layer activation
-        self.layers.add_module(f'activation {0}', nn.ELU())
+        self.layers.add_module(f'activation {0}', nn.Softplus())
         for i in range(1, nLayers - 1):
             #Hidden layer i
             self.layers.add_module(f'fc{i}', nn.Linear(nHiddenNeurons, nHiddenNeurons))
             #Hidden layer i activation
-            self.layers.add_module(f'activation {i}', nn.ELU())
+            self.layers.add_module(f'activation {i}', nn.Softplus())
         #output layer
         self.layers.add_module(f'fc{nLayers - 1}', nn.Linear(nHiddenNeurons, dimOutput))
 
@@ -68,9 +68,9 @@ class NeuralNet(nn.Module):
             self.prepare()
 
         if self.differential == False:
-            Training.trainingLoop(self.X_scaled, self.y_scaled, n_epochs, batch_size, self, lr=lr)
+            self.loss = Training.trainingLoop(self.X_scaled, self.y_scaled, n_epochs, batch_size, self, lr=lr)
         elif self.differential == True:
-            Training.diffTrainingLoop(self.X_scaled, self.y_scaled, self.dydx_scaled, n_epochs, batch_size, self, alpha, beta, self.lambda_j, lr=lr)
+            self.loss = Training.diffTrainingLoop(self.X_scaled, self.y_scaled, self.dydx_scaled, n_epochs, batch_size, self, alpha, beta, self.lambda_j, lr=lr)
 
 
     #Predict
