@@ -14,10 +14,10 @@ class LinearModel(nn.Module):
     def forward(self, x):
         return self.linear(x)
 
-    def train(self, X, y, n_epochs=10, batch_size=100):
+    def train(self, X, y, n_epochs=100, batch_size=257):
 
         loss = nn.MSELoss()
-        optimizer = optim.Adam(self.parameters(), lr = 0.01)
+        optimizer = optim.Adam(self.parameters(), lr = 0.001)
         for epoch in range(n_epochs):
 
             permutation = torch.randperm(X.size()[0])
@@ -34,7 +34,11 @@ class LinearModel(nn.Module):
 #Creates feature matrix from state variable
 def featureMatrix(state):
     state = state.view(state.shape[0], 1)
-    X = torch.cat((state, torch.pow(state, 2), torch.pow(state, 3), torch.pow(state, 4)), dim = 1)
+    x1 = state
+    x2 = torch.pow(state, 2)
+    x3 = torch.pow(state, 3)
+    x4 = torch.pow(state, 4)
+    X = torch.cat((x1, x2, x3, x4), dim = 1)
     return X
 
 #Simulates Black-Scholes paths and calculates exercise value at each t

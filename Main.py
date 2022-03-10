@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 #%%
 nSamples = 12500
+alpha = 1/(1+nSamples)
+beta = 1-alpha
 dt = 10
 T = 1.
 sigma = 0.2 + np.random.normal(0, 0.025, nSamples)
@@ -44,9 +46,9 @@ for i in range(0, S0.shape[0]):
     C[i] = product.payoff(torch.tensor(S), torch.tensor(r), torch.tensor(T))
 
 #Define and train net
-net = nn.NeuralNet(2, 1, 6, 60, differential=True)
+net = nn.NeuralNet(2, 1, 4, 20, differential=True)
 net.generateData(X, C, greeks)
-net.train(n_epochs = 5, batch_size=100, alpha=0.1, beta=0.9, lr=0.001)
+net.train(n_epochs = 100, batch_size=257, alpha=alpha, beta=beta, lr=0.001)
 
 #predict
 S0_test = np.linspace(S0.min(), S0.max(), 100)
@@ -92,44 +94,45 @@ plt.show()
 #%%
 #____________________________________________________________________________
 ###   Longstaff - Schwartz example   ###
-
-nSamples_LSM = 1000
+nSamples_LSM = 12500
 S_LSM = K + d * torch.normal(0, 1, size=(nSamples_LSM, 1))
 K_LSM = torch.tensor(1.)
 sigma_LSM = torch.tensor(0.2)
 r_LSM = torch.tensor(0.03)
-dts_LSM = torch.tensor([1., 1., 1., 1.]).view(1,4)
+dt = 4
+dts_LSM = torch.tensor([1.]*dt).view(1,dt)
 
-C_LSM = torch.empty((S_LSM.shape[0]))
-greeks_LSM = torch.empty((S_LSM.shape[0]))
-St_LSM = torch.empty((S_LSM.shape[0], 4))
+C_LSM = np.empty((S_LSM.shape[0]))
+greeks_LSM = np.empty((S_LSM.shape[0],1))
+
+dW = torch.randn(nSamples_LSM, dt)
+St, Et = ls.genPaths(S_LSM, K_LSM, sigma_LSM, r_LSM, dts_LSM, dW)
+
+w, b = ls.LSM_train(St, Et)
+
+
 for i in range(S_LSM.shape[0]):
-    if i % 100 == 0:
-        print(i, '/', nSamples_LSM)
     Si = S_LSM[i]
-    dW = torch.randn(1,4)
-    St, Et = ls.genPaths(Si, K_LSM, sigma_LSM, r_LSM, dts_LSM, dW)
-    w, b = ls.LSM_train(St, Et)
     Si.requires_grad_()
-    C_LSM[i] = ls.LSM(Si, K_LSM, sigma_LSM, r_LSM, dts_LSM, dW, w, b)
-    greeks_LSM[i] = torch.autograd.grad(C_LSM[i], [Si], allow_unused=True)[0]
-    
+    tempC = ls.LSM(Si, K_LSM, sigma_LSM, r_LSM, dts_LSM, dW[i], w, b)
+    tempgreeks = torch.autograd.grad(tempC, [Si], allow_unused=True)[0]
+    C_LSM[i] = tempC.detach().numpy()
+    greeks_LSM[i] = tempgreeks.detach().numpy()
+
 print('Data generated')
 
 #Define and train net
-netLSM = nn.NeuralNet(1, 1, 6, 60, differential=True)
-netLSM.generateData(S_LSM.detach(), C_LSM.detach(), greeks_LSM)
-netLSM.prepare()
-netLSM.lambda_j = 1.0 / torch.sqrt((netLSM.dydx ** 2).mean(0)).reshape(1, -1)
-netLSM.train(n_epochs = 5, batch_size=10, alpha=0.1, beta=0.9, lr=0.001)
+netLSM = nn.NeuralNet(1, 1, 4, 20, differential=True)
+netLSM.generateData(S_LSM.detach().numpy(), C_LSM, greeks_LSM)
+netLSM.train(n_epochs = 80, batch_size=257, alpha=alpha, beta=beta, lr=0.001)
 
 #predict
-y_LSM_test, dydx_LSM_test = netLSM.predict(S0_test, gradients=True)
+y_LSM_test, dydx_LSM_test = netLSM.predict(X_test[:,0], gradients=True)
 
 plt.figure(figsize=[14,8])
 plt.subplot(1, 2, 1)
 plt.plot(S0, C, 'o', color='grey', alpha = 0.3, label='Euro samples')
-plt.plot(S_LSM.detach().numpy(), C_LSM.detach().numpy(), 'o', color='lightblue', alpha = 0.3, label='American samples')
+plt.plot(S_LSM.detach().numpy(), C_LSM, 'o', color='lightblue', alpha = 0.3, label='American samples')
 plt.plot(S0_test, y_test, color='red', label='NN - Euro')
 plt.plot(S0_test, y_LSM_test, color='navy', label='NN - American')
 plt.legend()
@@ -139,7 +142,7 @@ plt.ylabel('C')
 
 plt.subplot(1, 2, 2)
 plt.plot(S0, greeks[:,0], 'o', color='grey', alpha = 0.3, label='Euro delta')
-plt.plot(S_LSM.detach().numpy(), greeks_LSM.detach().numpy(), 'o', color='lightblue', alpha = 0.3, label='American delta')
+plt.plot(S_LSM.detach().numpy(), greeks_LSM, 'o', color='lightblue', alpha = 0.3, label='American delta')
 plt.plot(S0_test, dydx_test[:,0], color='red', label='NN - Euro')
 plt.plot(S0_test, dydx_LSM_test, color='navy', label='NN - American')
 plt.legend()
@@ -147,4 +150,3 @@ plt.title(f'Euro (samples: {nSamples}) vs American option (samples: {nSamples_LS
 plt.xlabel('S0')
 plt.ylabel('Delta')
 plt.show()
-#plt.savefig('./Plots/LongstaffvsEuro')
