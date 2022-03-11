@@ -55,39 +55,44 @@ class BlackScholesModel(AbstractProcessClass):
         
 
 #Analytics
-def delta(S0, K, T, sigma, r, type='Call'):
+def delta(S0, K, T, sigma, r, type='call'):
     d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
-    if type == 'Call':
+    if type.lower() == 'call':
         return norm.cdf(d1)
-    elif type == 'Put':
+    elif type.lower() == 'put':
         return -norm.cdf(-d1)
 
-def vega(S0, K, T, sigma, r, type='Call'):
+def vega(S0, K, T, sigma, r, type='call'):
     d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
-    if type == 'Call' or type == 'Put':
+    if type.lower() == 'call' or type.lower() == 'put':
         return S0 * norm.pdf(d1) * np.sqrt(T)
 
-def theta(S0, K, T, sigma, r, type='Call'):
+def theta(S0, K, T, sigma, r, type='call'):
     d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
     d2 = d1 - sigma * np.sqrt(T)
     
-    if type == 'Call':
+    if type.lower() == 'call':
         theta = -((S0 * norm.pdf(d1) * sigma)/(2*np.sqrt(T))) - r * K * np.exp(-r*T) * norm.cdf(d2)
         return theta
-    elif type == 'Put':
+    elif type.lower() == 'put':
         theta = -((S0 * norm.pdf(d1) * sigma)/(2*np.sqrt(T))) + r * K * np.exp(-r*T) * norm.cdf(-d2)
         return theta
 
-def rho(S0, K, T, sigma, r, type='Call'):
+def rho(S0, K, T, sigma, r, type='call'):
     d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
     d2 = d1 - sigma * np.sqrt(T)
     
-    if type == 'Call':
+    if type.lower() == 'call':
         rho = K * T * np.exp(-r*T) * norm.cdf(d2)
         return rho
-    elif type == 'Put':
+    elif type.lower() == 'put':
         rho = -K * T * np.exp(-r*T) * norm.cdf(-d2)
         return rho
+    
+    
+def gamma(S0, K, T, sigma, r, type='call'):
+    d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
+    return norm.pdf(d1)/(S0*sigma*np.sqrt(T))
 
 def C(S0, K, T, sigma, r):
     d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
@@ -101,5 +106,4 @@ def P(S0, K, T, sigma, r):
     d2 = d1 - sigma * np.sqrt(T)
 
     P = norm.cdf(-d2)*K*np.exp(-r*T) - norm.cdf(-d1)*S0
-
     return P
