@@ -1,11 +1,12 @@
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+import numpy as np
 
 #Regular training loop
 def trainingLoop(X, y, n_epochs, batch_size, NeuralNet, lr=0.001):
     optimizer = optim.Adam(NeuralNet.parameters(), lr=lr)
-    lossTensor = torch.empty(n_epochs)
+    lossTensor = np.empty(n_epochs)
 
     for epoch in range(n_epochs):
 
@@ -20,7 +21,7 @@ def trainingLoop(X, y, n_epochs, batch_size, NeuralNet, lr=0.001):
             loss.backward()
             optimizer.step()
         print(loss)
-        lossTensor[epoch] = loss
+        lossTensor[epoch] = loss.detach().numpy()
     return lossTensor
 
 
@@ -39,7 +40,7 @@ def diffReg(labels, predictions, derivLabels, derivPredictions, alpha, beta, lam
 #Training loop with differential regularization
 def diffTrainingLoop(X, y_values, y_derivs, n_epochs, batch_size, NeuralNet, alpha, beta, lambda_j=1, lr=0.001):
     optimizer = optim.Adam(NeuralNet.parameters(), lr=lr)
-    lossTensor = torch.empty(n_epochs)
+    lossTensor = np.empty(n_epochs)
 
     for epoch in range(n_epochs):
 
@@ -56,6 +57,6 @@ def diffTrainingLoop(X, y_values, y_derivs, n_epochs, batch_size, NeuralNet, alp
             loss.backward()
             optimizer.step()
         print(loss)
-        lossTensor[epoch] = loss
+        lossTensor[epoch] = loss.detach().numpy()
 
     return lossTensor

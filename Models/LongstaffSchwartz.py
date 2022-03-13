@@ -1,3 +1,4 @@
+from dis import disco
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -83,8 +84,11 @@ def LSM(S, K, sigma, r, dts, dW, w, b, type='Call'):
 
     St, Et = genPaths(S, K, sigma, r, dts, dW, type=type)
 
+    T = 1
     n_excerises = St.shape[1]
-    discountFactor = np.exp(-r * n_excerises)
+    dt = T / n_excerises
+
+    discountFactor = np.exp(-r * dt)
 
     continuationValues = []
     exercises = []
@@ -105,7 +109,7 @@ def LSM(S, K, sigma, r, dts, dW, w, b, type='Call'):
     #Last exercise date
     inMoney = torch.greater(Et[:,-1], 0.).float()
     exercise =  inMoney * (1-previous_exercises)
-    npv += exercise*Et[:,-1]
+    npv += exercise*Et[:,-1] * discountFactor
     npv = torch.mean(npv)
 
     return npv

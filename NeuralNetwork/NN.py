@@ -4,7 +4,7 @@ import NeuralNetwork.Training as Training
 import NeuralNetwork.Preprocessing as pre
 
 class NeuralNet(nn.Module):
-    def __init__(self, dimInput, dimOutput, nLayers, nHiddenNeurons, differential=False):
+    def __init__(self, dimInput, dimOutput, nHiddenLayers, nHiddenNeurons, differential=False):
         #Inherit from nn.Module
         super().__init__()
         self.differential = differential
@@ -17,13 +17,13 @@ class NeuralNet(nn.Module):
         self.layers.add_module(f'fc{0}', nn.Linear(dimInput, nHiddenNeurons))
         #Input layer activation
         self.layers.add_module(f'activation {0}', nn.Softplus())
-        for i in range(1, nLayers - 1):
+        for i in range(0, nHiddenLayers):
             #Hidden layer i
-            self.layers.add_module(f'fc{i}', nn.Linear(nHiddenNeurons, nHiddenNeurons))
+            self.layers.add_module(f'fc{i + 1}', nn.Linear(nHiddenNeurons, nHiddenNeurons))
             #Hidden layer i activation
-            self.layers.add_module(f'activation {i}', nn.Softplus())
+            self.layers.add_module(f'activation {i + 1}', nn.Softplus())
         #output layer
-        self.layers.add_module(f'fc{nLayers - 1}', nn.Linear(nHiddenNeurons, dimOutput))
+        self.layers.add_module(f'fc{nHiddenLayers + 1}', nn.Linear(nHiddenNeurons, dimOutput))
 
     #Forward pass through NN
     def forward(self, x):
