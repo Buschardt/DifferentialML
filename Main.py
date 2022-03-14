@@ -47,7 +47,7 @@ for i in range(0, S0.shape[0]):
 #Define and train net
 net = nn.NeuralNet(2, 1, 4, 20, differential=True)
 net.generateData(X, C, greeks)
-net.train(n_epochs = 100, batch_size=256, alpha=alpha, beta=beta, lr=0.001)
+net.train(n_epochs = 100, batch_size=256, alpha=alpha, beta=beta, lr=0.1)
 
 #predict
 S0_test = np.linspace(S0.min(), S0.max(), 100)
