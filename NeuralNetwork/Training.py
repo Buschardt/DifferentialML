@@ -7,6 +7,7 @@ import numpy as np
 def trainingLoop(X, y, n_epochs, batch_size, NeuralNet, lr=0.001):
     optimizer = optim.Adam(NeuralNet.parameters(), lr=lr)
     lossTensor = np.empty(n_epochs)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
 
     for epoch in range(n_epochs):
 
@@ -20,6 +21,7 @@ def trainingLoop(X, y, n_epochs, batch_size, NeuralNet, lr=0.001):
             loss = F.mse_loss(output, y_batch)
             loss.backward()
             optimizer.step()
+        scheduler.step(loss)
         print(loss)
         lossTensor[epoch] = loss.detach().numpy()
     return lossTensor
@@ -41,6 +43,7 @@ def diffReg(labels, predictions, derivLabels, derivPredictions, alpha, beta, lam
 def diffTrainingLoop(X, y_values, y_derivs, n_epochs, batch_size, NeuralNet, alpha, beta, lambda_j=1, lr=0.001):
     optimizer = optim.Adam(NeuralNet.parameters(), lr=lr)
     lossTensor = np.empty(n_epochs)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
 
     for epoch in range(n_epochs):
 
@@ -56,6 +59,7 @@ def diffTrainingLoop(X, y_values, y_derivs, n_epochs, batch_size, NeuralNet, alp
             loss = diffReg(y_values_batch, output, y_derivs_batch, predDerivs[0], alpha, beta, lambda_j)
             loss.backward()
             optimizer.step()
+        scheduler.step(loss)
         print(loss)
         lossTensor[epoch] = loss.detach().numpy()
 

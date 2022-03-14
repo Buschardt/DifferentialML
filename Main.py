@@ -11,15 +11,15 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np
 #%%
-nSamples = 12500
+nSamples = 8192*2
 alpha = 1/(1+nSamples)
 beta = 1-alpha
 dt = 10
 T = 1.
-sigma = 0.2 #+ np.random.normal(0, 0.025, nSamples)
+sigma = 0.2 + np.random.normal(0, 0.025, nSamples)
 K = 1.
 d = 0.25
-r = 0.03 + np.random.normal(0, 0.0055, nSamples)
+r = 0.03 #+ np.random.normal(0, 0.0055, nSamples)
 
 #Generate data
 S0 = K + d * np.random.normal(0, 1, nSamples)
@@ -27,41 +27,40 @@ S0[S0 < 0] = 0.01
 #S0 = np.linspace(0.01,3.5,nSamples)
 ST = np.empty(S0.shape[0])
 C = np.empty(S0.shape[0])
-X = np.c_[S0, r]
+X = np.c_[S0, sigma]
 greeks = np.empty((S0.shape[0], 2))
 
 product = Option(K, 'call')
 time = td.TimeDiscretization(0, dt, T/dt)
 driver = bm.BrownianMotion(time, nSamples, 1)
 driver.generateBM()
+model = bsm.BlackScholesModel(sigma[0], r)
+model.setDerivParameters(['vol']) #'riskFreeRate'
+process = ep.EulerSchemeFromProcessModel(model,driver,time, product)
 
 for i in range(0, S0.shape[0]):
-    model = bsm.BlackScholesModel(sigma, r[i])
-    model.setDerivParameters(['riskFreeRate']) #'vol'
-    process = ep.EulerSchemeFromProcessModel(model,driver,time, product)
+    process.model.vol = sigma[i]
     S0_tensor = torch.tensor(S0[i])
-    S = process.calculateProcess(S0_tensor, i)
+    S, C[i], greeks[i, :] = process.calculateDerivs(S0_tensor, i, anti=True)
     ST[i] = S[-1]
-    greeks[i, :] = process.calculateDerivs(S0_tensor, i)
-    C[i] = product.payoff(torch.tensor(S), torch.tensor(r[i]), torch.tensor(T))
 
 #Define and train net
 net = nn.NeuralNet(2, 1, 4, 20, differential=True)
 net.generateData(X, C, greeks)
-net.train(n_epochs = 100, batch_size=257, alpha=alpha, beta=beta, lr=0.001)
+net.train(n_epochs = 100, batch_size=256, alpha=alpha, beta=beta, lr=0.001)
 
 #predict
 S0_test = np.linspace(S0.min(), S0.max(), 100)
-#sigma_test = np.linspace(0.2, 0.2, 100)
-r_test = np.linspace(0.03, 0.03, 100)
-X_test = np.c_[S0_test, r_test]
+sigma_test = np.linspace(0.2, 0.2, 100)
+#r_test = np.linspace(0.03, 0.03, 100)
+X_test = np.c_[S0_test, sigma_test]
 y_test, dydx_test = net.predict(X_test, True)
 
 #compare with true Black-Scholes price
-truePrice = bsm.C(S0_test, K, T, sigma, r_test)
-trueDelta = bsm.delta(S0_test, K, T, sigma, r_test, 'Call')
-#trueVega = bsm.vega(S0_test, K, T, sigma, r_test, 'Call')
-trueVega = bsm.rho(S0_test, K, T, sigma, r_test, 'Call')
+truePrice = bsm.C(S0_test, K, T, sigma_test, r)
+trueDelta = bsm.delta(S0_test, K, T, sigma_test, r, 'Call')
+trueVega = bsm.vega(S0_test, K, T, sigma_test, r, 'Call')
+#trueVega = bsm.rho(S0_test, K, T, sigma_test, r, 'Call')
 
 plt.figure(figsize=[14,8])
 plt.subplot(1, 3, 1)
@@ -83,19 +82,19 @@ plt.legend()
 plt.title('Differential ML - Delta approximation')
 
 plt.subplot(1, 3, 3)
-plt.plot(S0, greeks[:,1], 'o', color='grey', label='AAD rho', alpha = 0.3)
-plt.plot(S0_test, dydx_test[:,1], color='red', label='NN approximated rho')
-plt.plot(S0_test, trueVega, color='black', label='Black-Scholes rho')
-#plt.ylim([-1,1])
+plt.plot(S0, greeks[:,1], 'o', color='grey', label='AAD vega', alpha = 0.3)
+plt.plot(S0_test, dydx_test[:,1], color='red', label='NN approximated vega')
+plt.plot(S0_test, trueVega, color='black', label='Black-Scholes vega')
+plt.ylim([-0.5,1.5])
 plt.xlabel('S0')
-plt.ylabel('Rho')
+plt.ylabel('Vega')
 plt.legend()
-plt.title('Differential ML - Rho approximation')
+plt.title('Differential ML - Vega approximation')
 plt.show()
 #plt.savefig('./Plots/DiffNNTest3.png')
 
 #%%
-plt.plot(net.loss.detach().numpy())
+plt.plot(net.loss)
 #%%
 #____________________________________________________________________________
 ###   Longstaff - Schwartz example   ###
