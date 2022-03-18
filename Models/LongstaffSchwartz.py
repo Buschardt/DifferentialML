@@ -43,14 +43,23 @@ def featureMatrix(state):
     return X
 
 #Simulates Black-Scholes paths and calculates exercise value at each t
-def genPaths(S, K, sigma, r, dts, dW, type='Call'):
-    #dt = dts.shape[1]
-    #r = r * np.arange(1/dt, 1+1/dt, 1/dt)
+def genPaths(S, K, sigma, r, T, dt, dW, type='call', anti=False):
+    dts = torch.tensor([T/dt]*dt).view(1,dt)
     St = S * torch.cumprod(torch.exp((r-sigma**2/2)*dts + sigma*torch.sqrt(dts)*dW), axis=1)
-    if type == 'Call':
+
+    if type == 'call':
         Et = torch.maximum(St-K, torch.tensor(0))
-    elif type == 'Put':
+    elif type == 'put':
         Et = torch.maximum(K-St, torch.tensor(0))
+
+    if anti == True:
+        dW_anti = -1 * dW
+        St_anti = S * torch.cumprod(torch.exp((r-sigma**2/2)*dts + sigma*torch.sqrt(dts)*dW_anti), axis=1)
+        if type == 'call':
+            Et_anti = torch.maximum(St_anti-K, torch.tensor(0))
+        elif type == 'put':
+            Et_anti = torch.maximum(K-St_anti, torch.tensor(0))
+        return (St+St_anti)/2, (Et+Et_anti)/2
     return St, Et
 
 #Trains Linear models for each timepoint t used to estimate the continuation values.
@@ -80,9 +89,9 @@ def LSM_train(St, Et):
     return modelw, modelb
 
 #Longstaff-Schwartz algorithm using estimated models from LSM_train
-def LSM(S, K, sigma, r, dts, dW, w, b, type='Call'):
+def LSM(S, K, sigma, r, T, dt, dW, w, b, type='call', anti=False):
 
-    St, Et = genPaths(S, K, sigma, r, dts, dW, type=type)
+    St, Et = genPaths(S, K, sigma, r, T, dt, dW, type=type, anti=anti)
 
     T = 1
     n_excerises = St.shape[1]

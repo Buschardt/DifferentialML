@@ -39,6 +39,9 @@ class NeuralNet(nn.Module):
         self.dydx = dydx
         self.nSamples = X.shape[0]
 
+        self.alpha = 1/(1 + self.nSamples)
+        self.beta = 1 - self.alpha
+
     #Prepare data
     def prepare(self):
         #Test if tensor
@@ -56,13 +59,17 @@ class NeuralNet(nn.Module):
             nInputs = 1
         else:
             nInputs = self.X.shape[1]
+
         self.X_scaled = self.X_scaled.view(self.nSamples, nInputs).float()
         self.y_scaled = self.y_scaled.view(self.nSamples, 1).float()
         if type(self.dydx) != type(None):
             self.dydx_scaled = self.dydx_scaled.view(self.nSamples, nInputs).float()
 
     #Train Net
-    def train(self, n_epochs = 3, batch_size=10, alpha=0.25, beta=0.75, lr=0.001):
+    def train(self, n_epochs = 3, batch_size=10, lr=0.1):
+        alpha = self.alpha
+        beta = self.beta
+
         #check if data is scaled
         if self.X_scaled == None:
             self.prepare()

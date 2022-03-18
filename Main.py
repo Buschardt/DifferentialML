@@ -12,8 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 #%%
 nSamples = 8192*2
-alpha = 1/(1+nSamples)
-beta = 1-alpha
 dt = 10
 T = 1.
 sigma = 0.2 + np.random.normal(0, 0.025, nSamples)
@@ -47,7 +45,7 @@ for i in range(0, S0.shape[0]):
 #Define and train net
 net = nn.NeuralNet(2, 1, 4, 20, differential=True)
 net.generateData(X, C, greeks)
-net.train(n_epochs = 100, batch_size=256, alpha=alpha, beta=beta, lr=0.1)
+net.train(n_epochs = 100, batch_size=256, lr=0.1)
 
 #predict
 S0_test = np.linspace(S0.min(), S0.max(), 100)
@@ -61,6 +59,7 @@ truePrice = bsm.C(S0_test, K, T, sigma_test, r)
 trueDelta = bsm.delta(S0_test, K, T, sigma_test, r, 'Call')
 trueVega = bsm.vega(S0_test, K, T, sigma_test, r, 'Call')
 #trueVega = bsm.rho(S0_test, K, T, sigma_test, r, 'Call')
+
 
 plt.figure(figsize=[14,8])
 plt.subplot(1, 3, 1)
@@ -90,6 +89,7 @@ plt.xlabel('S0')
 plt.ylabel('Vega')
 plt.legend()
 plt.title('Differential ML - Vega approximation')
+
 plt.show()
 #plt.savefig('./Plots/DiffNNTest3.png')
 
@@ -98,19 +98,19 @@ plt.plot(net.loss)
 #%%
 #____________________________________________________________________________
 ###   Longstaff - Schwartz example   ###
-nSamples_LSM = 12500
+nSamples_LSM = 8192*2
 S_LSM = K + d * torch.normal(0, 1, size=(nSamples_LSM, 1))
 K_LSM = torch.tensor(1.)
 sigma_LSM = torch.tensor(0.2)
 r_LSM = torch.tensor(0.03)
-dt = 4
-dts_LSM = torch.tensor([1.]*dt).view(1,dt)
+dt = 10
+T_LSM = torch.tensor([1.])
 
 C_LSM = np.empty((S_LSM.shape[0]))
 greeks_LSM = np.empty((S_LSM.shape[0],1))
 
 dW = torch.randn(nSamples_LSM, dt)
-St, Et = ls.genPaths(S_LSM, K_LSM, sigma_LSM, r_LSM, dts_LSM, dW)
+St, Et = ls.genPaths(S_LSM, K_LSM, sigma_LSM, r_LSM, T_LSM, dt, dW, anti=True)
 
 w, b = ls.LSM_train(St, Et)
 
@@ -118,7 +118,7 @@ w, b = ls.LSM_train(St, Et)
 for i in range(S_LSM.shape[0]):
     Si = S_LSM[i]
     Si.requires_grad_()
-    tempC = ls.LSM(Si, K_LSM, sigma_LSM, r_LSM, dts_LSM, dW[i], w, b)
+    tempC = ls.LSM(Si, K_LSM, sigma_LSM, r_LSM, T_LSM, dt, dW[i], w, b, anti=True)
     tempgreeks = torch.autograd.grad(tempC, [Si], allow_unused=True)[0]
     C_LSM[i] = tempC.detach().numpy()
     greeks_LSM[i] = tempgreeks.detach().numpy()
@@ -128,7 +128,7 @@ print('Data generated')
 #Define and train net
 netLSM = nn.NeuralNet(1, 1, 4, 20, differential=True)
 netLSM.generateData(S_LSM.detach().numpy(), C_LSM, greeks_LSM)
-netLSM.train(n_epochs = 80, batch_size=257, alpha=alpha, beta=beta, lr=0.001)
+netLSM.train(n_epochs = 100, batch_size=256, lr=0.1)
 
 #predict
 y_LSM_test, dydx_LSM_test = netLSM.predict(X_test[:,0], gradients=True)
@@ -152,5 +152,5 @@ plt.plot(S0_test, dydx_LSM_test, color='navy', label='NN - American')
 plt.legend()
 plt.title(f'Euro (samples: {nSamples}) vs American option (samples: {nSamples_LSM})')
 plt.xlabel('S0')
-plt.ylabel('Delta')
+plt.ylabel('Delta') 
 plt.show()
