@@ -66,9 +66,10 @@ class NeuralNet(nn.Module):
             self.dydx_scaled = self.dydx_scaled.view(self.nSamples, nInputs).float()
 
     #Train Net
-    def train(self, n_epochs = 3, batch_size=10, lr=0.1):
-        alpha = self.alpha
-        beta = self.beta
+    def train(self, n_epochs = 3, batch_size=10, alpha=None, beta=None, lr=0.1):
+        if alpha == None and beta == None:
+            alpha = self.alpha
+            beta = self.beta
 
         #check if data is scaled
         if self.X_scaled == None:

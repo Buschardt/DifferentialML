@@ -93,18 +93,14 @@ def LSM(S, K, sigma, r, T, dt, dW, w, b, type='call', anti=False):
 
     St, Et = genPaths(S, K, sigma, r, T, dt, dW, type=type, anti=anti)
 
-    T = 1
-    n_excerises = St.shape[1]
-    dt = T / n_excerises
-
-    discountFactor = np.exp(-r * dt)
+    discountFactor = np.exp(-r * (T/dt))
 
     continuationValues = []
     exercises = []
     previous_exercises = 0
     npv = 0
 
-    for i in range(n_excerises-1):
+    for i in range(dt-1):
         X = featureMatrix(St[:, i]).double()
         contValue = torch.add(torch.matmul(X.double(), w[i].T.double()), b[i].double())
         continuationValues.append(contValue)
