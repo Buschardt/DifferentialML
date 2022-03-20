@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-
+import numpy.polynomial.polynomial as poly
 import numpy as np
 
 #Linear model class
@@ -42,19 +42,33 @@ def featureMatrix(state):
     X = torch.cat((x1, x2, x3, x4), dim = 1)
     return X
 
-#Simulates Black-Scholes paths and calculates exercise value at each t
-def genPaths(S, K, sigma, r, T, dt, dW, type='call', anti=False):
-    dts = torch.tensor([T/dt]*dt).view(1,dt)
-    St = S * torch.cumprod(torch.exp((r-sigma**2/2)*dts + sigma*torch.sqrt(dts)*dW), axis=1)
 
+
+def predExerciseBoundary(xTrain,yTrain,xTest,degree = 4):
+    coefs = poly.polyfit(xTrain, yTrain, degree)
+    return poly.polyval(xTest,coefs).T
+
+
+#Simulates Black-Scholes paths and calculates exercise value at each t
+def genPaths(S, K, sigma, r, T, dt, dW, type='call', anti=False,tp = None):
+    
+    if len(dW.shape) == 2:
+        axis = 1
+    else:
+        axis = 0
+    
+    if tp:
+        dts = torch.tensor([T/dt]*dt)[:tp]
+    else:
+        dts = torch.tensor([T/dt]*dt).view(1,dt)
+    St = S * torch.cumprod(torch.exp((r-sigma**2/2)*dts + sigma*torch.sqrt(dts)*dW), axis=axis)
     if type == 'call':
         Et = torch.maximum(St-K, torch.tensor(0))
     elif type == 'put':
         Et = torch.maximum(K-St, torch.tensor(0))
-
     if anti == True:
         dW_anti = -1 * dW
-        St_anti = S * torch.cumprod(torch.exp((r-sigma**2/2)*dts + sigma*torch.sqrt(dts)*dW_anti), axis=1)
+        St_anti = S * torch.cumprod(torch.exp((r-sigma**2/2)*dts + sigma*torch.sqrt(dts)*dW_anti), axis=axis)
         if type == 'call':
             Et_anti = torch.maximum(St_anti-K, torch.tensor(0))
         elif type == 'put':
@@ -88,13 +102,37 @@ def LSM_train(St, Et):
     
     return modelw, modelb
 
+
+def LSM_train_poly(St, Et):
+    n_excerises = St.shape[1]
+    Tt = np.array([n_excerises]*Et.shape[0])
+    St = St.numpy()
+    Et = Et.numpy()
+    Tt = np.where(Et[:, -1]>0,Tt,n_excerises)
+    for i in range(n_excerises-1)[::-1]:
+        y = Et[:, i+1]
+        X = St[:, i]
+        continuationValue = predExerciseBoundary(X[Et[:,i]>0],  y[Et[:,i]>0], X)
+        inMoney = np.greater(Et[:,i], 0.)
+        Tt = np.where((Et[:, i]>continuationValue)*inMoney,i,Tt)
+        Et[:, i] = np.maximum(Et[:, i], continuationValue)
+        del continuationValue
+    
+    return Tt
+
+
+def simpleLSM(S,K,sigma,r,T,dt,dW,type = 'call',anti = False):
+    if not dW.nelement():
+        return torch.maximum(K-S,torch.tensor(0)) if type == 'put' else torch.maximum(S-K,torch.tensor(0))
+    
+    St, Et = genPaths(S, K, sigma, r, T, dt, dW, type=type, anti=False,tp = dW.nelement())
+    return Et[-1]*np.exp(-r*T*len(dW)/dt)
+    
+
 #Longstaff-Schwartz algorithm using estimated models from LSM_train
 def LSM(S, K, sigma, r, T, dt, dW, w, b, type='call', anti=False):
-
     St, Et = genPaths(S, K, sigma, r, T, dt, dW, type=type, anti=anti)
-
     discountFactor = np.exp(-r * (T/dt))
-
     continuationValues = []
     exercises = []
     previous_exercises = 0
