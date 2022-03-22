@@ -44,23 +44,22 @@ def featureMatrix(state):
 
 
 
-def predExerciseBoundary(xTrain,yTrain,xTest,degree = 4):
+def predExerciseBoundary(xTrain,yTrain,xTest,degree = 2):
     coefs = poly.polyfit(xTrain, yTrain, degree)
     return poly.polyval(xTest,coefs).T
 
 
 #Simulates Black-Scholes paths and calculates exercise value at each t
 def genPaths(S, K, sigma, r, T, dt, dW, type='call', anti=False,tp = None):
-    
     if len(dW.shape) == 2:
         axis = 1
     else:
         axis = 0
     
     if tp:
-        dts = torch.tensor([T/dt]*dt)[:tp]
+        dts = torch.concat((torch.tensor([0.]),torch.tensor([T/(dt)]*dt)))[:tp]
     else:
-        dts = torch.tensor([T/dt]*dt).view(1,dt)
+        dts = torch.concat((torch.tensor([0.]),torch.tensor([T/(dt)]*(dt))))
     St = S * torch.cumprod(torch.exp((r-sigma**2/2)*dts + sigma*torch.sqrt(dts)*dW), axis=axis)
     if type == 'call':
         Et = torch.maximum(St-K, torch.tensor(0))
@@ -102,31 +101,36 @@ def LSM_train(St, Et):
     
     return modelw, modelb
 
+def putPayoff(st,k):
+    k = np.array([k])
+    return np.maximum(k-st,0)
 
-def LSM_train_poly(St, Et):
+def LSM_train_poly(St, Et,discount):
     n_excerises = St.shape[1]
     Tt = np.array([n_excerises]*Et.shape[0])
     St = St.numpy()
     Et = Et.numpy()
     Tt = np.where(Et[:, -1]>0,Tt,n_excerises)
+    cashflow = Et[:,-1]
     for i in range(n_excerises-1)[::-1]:
-        y = Et[:, i+1]
+        cashflow = cashflow*discount
         X = St[:, i]
-        continuationValue = predExerciseBoundary(X[Et[:,i]>0],  y[Et[:,i]>0], X)
-        inMoney = np.greater(Et[:,i], 0.)
-        Tt = np.where((Et[:, i]>continuationValue)*inMoney,i,Tt)
-        Et[:, i] = np.maximum(Et[:, i], continuationValue)
+        exercise = Et[:,i]
+        itm = exercise>0
+        continuationValue = predExerciseBoundary(X[itm], cashflow[itm], X,3)
+        ex_idx = (exercise>continuationValue)*itm
+        Tt = np.where(ex_idx,i,Tt)
+        cashflow[ex_idx] = exercise[ex_idx]
         del continuationValue
     
-    return Tt
+    return Tt,cashflow
 
 
 def simpleLSM(S,K,sigma,r,T,dt,dW,type = 'call',anti = False):
     if not dW.nelement():
         return torch.maximum(K-S,torch.tensor(0)) if type == 'put' else torch.maximum(S-K,torch.tensor(0))
-    
     St, Et = genPaths(S, K, sigma, r, T, dt, dW, type=type, anti=False,tp = dW.nelement())
-    return Et[-1]*np.exp(-r*T*len(dW)/dt)
+    return Et[-1]*np.exp(-r*T*(len(dW)-1)/dt)
     
 
 #Longstaff-Schwartz algorithm using estimated models from LSM_train
