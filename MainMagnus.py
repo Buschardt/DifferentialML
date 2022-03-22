@@ -98,25 +98,27 @@ plt.plot(net.loss)
 #%%
 #____________________________________________________________________________
 ###   Longstaff - Schwartz example   ###
-nSamples_LSM = 8192
-antiFlg = True
-K=1
-d = 0.25
-S_LSM = K + d * torch.normal(0, 1, size=(nSamples_LSM, 1))
+nSamples_LSM = 8192*8
+antiFlg = False
+K = 40
+d = 0.1
+r = 0.06
+timeToMaturity = 1.
+discount = np.exp(-(r/dt)*timeToMaturity)
+S_LSM = K *np.exp(d * torch.normal(0, 1, size=(nSamples_LSM,1)))
 K_LSM = torch.tensor(K)
-sigma_LSM = torch.tensor(0.2)
-r_LSM = torch.tensor(0.03)
-dt = 100
-T_LSM = torch.tensor([1.])
+sigma_LSM = torch.tensor(0.4)
+r_LSM = torch.tensor(r)
+dt = 49
+T_LSM = torch.tensor([timeToMaturity])
 
 C_LSM = np.empty((S_LSM.shape[0]))
 greeks_LSM = np.empty((S_LSM.shape[0],1))
-
-dW = torch.randn(nSamples_LSM, dt)
+dW = torch.randn(nSamples_LSM, dt+1)
 St, Et = ls.genPaths(S_LSM, K_LSM, sigma_LSM, r_LSM, T_LSM, dt, dW,type = typeFlg, anti=antiFlg)
-et = Et.numpy()
-st = St.numpy()
-tp = ls.LSM_train(St, Et).flatten()
+st = St.detach().numpy()
+et = Et.detach().numpy()
+tp,cont = ls.LSM_train_poly(St, Et,discount)
 #indeks = 7
 #st[:,-indeks][tp[:,-indeks]==1].max()
 #st[:,-indeks][tp[:,-indeks]==0].min()
@@ -124,18 +126,25 @@ tp = ls.LSM_train(St, Et).flatten()
 for i in range(S_LSM.shape[0]):
     Si = S_LSM[i]
     Si.requires_grad_()
-    tempC = ls.simpleLSM(Si, K_LSM, sigma_LSM, r_LSM, T_LSM, dt, dW[i][:tp[i]],type = typeFlg,anti = antiFlg)
+    tempC = ls.simpleLSM(Si, K_LSM, sigma_LSM, r_LSM, T_LSM, dt, dW[i][:tp[i]+1],type = typeFlg,anti = antiFlg)
     #tempC = ls.LSM(Si, K_LSM, sigma_LSM, r_LSM, T_LSM, dt, dW[i], w, b,type = typeFlg, anti=True)
     tempgreeks = torch.autograd.grad(tempC, [Si], allow_unused=True)[0]
     C_LSM[i] = tempC.detach().numpy()
     greeks_LSM[i] = tempgreeks.detach().numpy()
 
+#ls.simpleLSM(S_LSM[3], K_LSM, sigma_LSM, r_LSM, T_LSM, dt, dW[3][:tp[3]],type = typeFlg,anti = antiFlg)
+#genPaths(S_LSM[0], K_LSM, sigma_LSM, r_LSM, T_LSM, dt, dW[0][:tp[0]+1], type=typeFlg, anti=False,tp = dW[0][:tp[0]+1].nelement())
 print('Data generated')
 
 #Define and train net
 netLSM = nn.NeuralNet(1, 1, 4, 20, differential=True)
 netLSM.generateData(S_LSM.detach().numpy(), C_LSM, greeks_LSM)
-netLSM.train(n_epochs = 100, batch_size=256, lr=0.1)
+netLSM.train(n_epochs = 100, batch_size=512)
+
+S0_test = np.linspace(S_LSM.min(), S_LSM.max(), 100)
+sigma_test = np.linspace(0.2, 0.2, 100)
+#r_test = np.linspace(0.03, 0.03, 100)
+X_test = np.c_[S0_test, sigma_test]
 
 #predict
 y_LSM_test, dydx_LSM_test = netLSM.predict(X_test[:,0], gradients=True)
@@ -161,3 +170,53 @@ plt.title(f'Euro (samples: {nSamples}) vs American option (samples: {nSamples_LS
 plt.xlabel('S0')
 plt.ylabel('Delta') 
 plt.show()
+
+
+
+
+
+y_LSM_test, dydx_LSM_test = netLSM.predict(np.array([36.0,38.0,40.0,42,44]), gradients=True)
+#2year,40sigma
+100*(y_LSM_test.flatten()-np.array([8.488,7.669,6.921,6.243,5.622]))/y_LSM_test.flatten()
+#1year, 40sigma
+100*(y_LSM_test.flatten()-np.array([7.091,6.139,5.308,4.588,3.957]))/y_LSM_test.flatten()
+y_LSM_test.flatten()-np.array([7.091,6.139,5.308,4.588,3.957])
+
+
+
+####LIDT LØST
+def predExerciseBoundary(xTrain,yTrain,xTest,degree = 4):
+    coefs = poly.polyfit(xTrain, yTrain, degree)
+    print(xTrain,yTrain)
+    print(coefs)
+    return poly.polyval(xTest,coefs).T
+
+stockmatrix = np.array([[1,1.09,1.08,1.34],
+                        [1,1.16,1.26,1.54],
+                        [1,1.22,1.07,1.03],
+                        [1,0.93,0.97,0.92],
+                        [1,1.11,1.56,1.52],
+                        [1,0.76,0.77,0.90],
+                        [1,0.92,0.84,1.01],
+                        [1,0.88,1.22,1.34]])
+
+Et = np.maximum(1.1-stockmatrix,0)
+print(Et)
+Tt = np.array([3]*Et.shape[0])
+Tt = np.where(Et[:, -1]>0,Tt,3)
+St = stockmatrix
+disc = np.exp(-0.06)
+for i in range(3)[::-1]:
+    y = Et[:, i+1]
+    X = St[:, i]
+    continuationValue = predExerciseBoundary(X[Et[:,i]>0],  y[Et[:,i]>0]*disc, X,4)
+    print(continuationValue)
+    inMoney = np.greater(Et[:,i], 0.)
+    Tt = np.where((Et[:, i]>continuationValue)*inMoney,i,Tt)
+    Et[:, i] = np.where((Et[:, i]>continuationValue)*inMoney,Et[:, i], 0)
+    print(Et)
+    del continuationValue
+Tt
+
+torch.concat((torch.tensor([0.]),torch.tensor([T/dt]*dt)))
+
