@@ -94,16 +94,12 @@ def gamma(S0, K, T, sigma, r, type='call'):
     d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
     return norm.pdf(d1)/(S0*sigma*np.sqrt(T))
 
-def C(S0, K, T, sigma, r):
+def V(S0, K, T, sigma, r, type='call'):
     d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
     d2 = d1 - sigma * np.sqrt(T)
 
-    C = norm.cdf(d1)*S0 - norm.cdf(d2)*K*np.exp(-r*T)
-    return C
-
-def P(S0, K, T, sigma, r):
-    d1 = 1/(sigma*np.sqrt(T)) * (np.log(S0/K) + (r+(sigma**2)/2) * T )
-    d2 = d1 - sigma * np.sqrt(T)
-
-    P = norm.cdf(-d2)*K*np.exp(-r*T) - norm.cdf(-d1)*S0
-    return P
+    if type.lower() == 'call':
+        V = norm.cdf(d1)*S0 - norm.cdf(d2)*K*np.exp(-r*T)
+    elif type.lower() == 'put':
+        V = norm.cdf(-d2)*K*np.exp(-r*T) - norm.cdf(-d1)*S0
+    return V

@@ -72,7 +72,7 @@ def genPaths(S, K, sigma, r, T, dt, dW, type='call', anti=False,tp = None):
             Et_anti = torch.maximum(St_anti-K, torch.tensor(0))
         elif type == 'put':
             Et_anti = torch.maximum(K-St_anti, torch.tensor(0))
-        return (St+St_anti)/2, (Et+Et_anti)/2
+        return torch.cat((St, St_anti), 0), torch.cat((Et, Et_anti), 0)
     return St, Et
 
 #Trains Linear models for each timepoint t used to estimate the continuation values.
@@ -126,7 +126,12 @@ def LSM_train_poly(St, Et,discount):
     return Tt,cashflow
 
 
-def simpleLSM(S,K,sigma,r,T,dt,dW,type = 'call',anti = False):
+def simpleLSM(S,K,sigma,r,T,dt,dW,type = 'call', anti = False):
+    if anti:
+        St, Et = genPaths(S, K, sigma, r, T, dt, dW[0], type=type, anti=False,tp = dW[0].nelement())
+        St_anti, Et_anti = genPaths(S, K, sigma, r, T, dt, dW[1], type=type, anti=False,tp = dW[1].nelement())
+        V = (Et[-1]*np.exp(-r*T*(len(dW[0])-1)/dt) + Et_anti[-1]*np.exp(-r*T*(len(dW[1])-1)/dt)) / 2
+        return V
     if not dW.nelement():
         return torch.maximum(K-S,torch.tensor(0)) if type == 'put' else torch.maximum(S-K,torch.tensor(0))
     St, Et = genPaths(S, K, sigma, r, T, dt, dW, type=type, anti=False,tp = dW.nelement())
