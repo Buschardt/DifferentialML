@@ -12,20 +12,32 @@ import matplotlib.pyplot as plt
 import torch
 import numpy as np
 #%%
-nSamples = 2**14
+#parameters
+nSamples = 2**13
 dt = 49
 T = 1.
-sigma = 0.2 + np.random.normal(0, 0.025, nSamples)
+sigmaMean = 0.2
+sigma = sigmaMean + np.random.normal(0, 0.025, nSamples)
 K = 40.
 d = 0.15
-r = 0.06 + np.random.normal(0, 0.0025, nSamples)
+rMean = 0.06
+r = rMean + np.random.normal(0, 0.0025, nSamples)
 typeFlg = 'put'
 antiFlg = True
+
+#Network parameters
+epochs = 100
+batchsize = 256
+lr = 0.1
+inputNeurons = 3
+outputNeurons = 1
+hiddenLayers = 4
+hiddenNeurons = 20
+diffML = True
 
 #Generate data
 S0 = K * np.exp(d * torch.normal(0, 1, size=(nSamples, 1)))
 S0[S0 < 0] = 0.01
-#S0 = np.linspace(0.01,3.5,nSamples)
 ST = np.empty(S0.shape[0])
 C = np.empty(S0.shape[0])
 X = np.c_[S0, sigma, r]
@@ -42,47 +54,47 @@ for i in range(0, S0.shape[0]):
     process.model.vol = sigma[i]
     process.model.riskFreeRate = r[i]
     S0_tensor = torch.tensor(S0[i])
-    S, C[i], greeks[i, :] = process.calculateDerivs(S0_tensor, i, anti=antiFlg)
+    S, C[i], greeks[i, :]  = process.calculateDerivs(S0_tensor, i, anti=antiFlg)
     ST[i] = S[-1]
 
 #Define and train net
-net = nn.NeuralNet(3, 1, 4, 20, differential=True)
+net = nn.NeuralNet(inputNeurons, outputNeurons, hiddenLayers, hiddenNeurons, differential=diffML)
 net.generateData(X, C, greeks)
-net.train(n_epochs = 100, batch_size=256, lr=0.1)
+net.train(n_epochs = epochs, batch_size=batchsize, lr=lr)
 
 #predict
 S0_test = np.linspace(S0.min(), S0.max(), 100)
-sigma_test = np.linspace(0.2, 0.2, 100)
-r_test = np.linspace(0.06, 0.06, 100)
+sigma_test = np.linspace(sigmaMean, sigmaMean, 100)
+r_test = np.linspace(rMean, rMean, 100)
 X_test = np.c_[S0_test, sigma_test, r_test]
-y_test, dydx_test = net.predict(X_test, True)
+y_test, dydx_test = net.predict(X_test, True, True)
 
 #compare with true Black-Scholes price
 truePrice = bsm.V(S0_test, K, T, sigma_test, r_test, typeFlg)
 trueDelta = bsm.delta(S0_test, K, T, sigma_test, r_test, typeFlg)
 trueVega = bsm.vega(S0_test, K, T, sigma_test, r_test, typeFlg)
 trueRho = bsm.rho(S0_test, K, T, sigma_test, r_test, typeFlg)
+trueGamma = bsm.gamma(S0_test, K, T, sigma_test, r_test, typeFlg)
 
 #plot
-y = np.c_[C, greeks]
+gamma = np.zeros_like(greeks[:,0])
+y = np.c_[C, greeks, gamma]
 y_test = np.c_[y_test, dydx_test]
-plotLabels = ['price', 'delta', 'vega', 'rho']
-y_true = np.c_[truePrice, trueDelta, trueVega, trueRho]
+plotLabels = ['price', 'delta', 'vega', 'rho', 'gamma']
+y_true = np.c_[truePrice, trueDelta, trueVega, trueRho, trueGamma]
 graph.plotTests(S0, S0_test, y, y_test, plotLabels, y_true=y_true, error=True)
-
 #%%
 plt.plot(net.loss)
 #%%
 #____________________________________________________________________________
 ###   Longstaff - Schwartz example   ###
-nSamples_LSM = 2**14
-K_LSM = torch.tensor(40.)
+nSamples_LSM = nSamples
+K_LSM = torch.tensor(K)
 S_LSM = K_LSM * np.exp(d * torch.normal(0, 1, size=(nSamples_LSM,1)))
-sigma_LSM = torch.tensor(0.2)
-r_LSM = torch.tensor(0.06)
-dt = 49
-T_LSM = torch.tensor([1.])
-discount = np.exp(-(r_LSM.item()/dt)*T_LSM.item())
+sigma_LSM = torch.tensor(sigmaMean)
+r_LSM = torch.tensor(rMean)
+T_LSM = torch.tensor([T])
+discount = np.exp(-(r_LSM.detach().numpy()/dt)*T_LSM.detach().numpy())
 
 C_LSM = np.empty((S_LSM.shape[0]))
 greeks_LSM = np.empty((S_LSM.shape[0],1))
@@ -108,9 +120,9 @@ for i in range(S_LSM.shape[0]):
 print('Data generated')
 
 #Define and train net
-netLSM = nn.NeuralNet(1, 1, 4, 20, differential=True)
+netLSM = nn.NeuralNet(1, outputNeurons, hiddenLayers, hiddenNeurons, differential=diffML)
 netLSM.generateData(S_LSM.detach().numpy(), C_LSM, greeks_LSM)
-netLSM.train(n_epochs = 100, batch_size=256, lr=0.1)
+netLSM.train(n_epochs = epochs, batch_size=batchsize, lr=lr)
 
 #predict
 y_LSM_test, dydx_LSM_test = netLSM.predict(X_test[:,0], gradients=True)

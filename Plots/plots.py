@@ -21,11 +21,14 @@ def plotTests(S0, S0_test, y, y_test, label, y_true=None,
             rows = 1
         else:
             cols = 2
-            rows = nPlots / 2
+            if (nPlots % 2) == 0:
+                rows = nPlots / 2
+            else:
+                rows = round(nPlots / 2) + 1
 
     #figsize hvis none, lav selv størrelse
     if figsize == None:
-        figsize = [14, 8]
+        figsize = [4*cols+1.5, 4*rows]
     
 
     #dobbelt for loop der danner plots
@@ -41,6 +44,10 @@ def plotTests(S0, S0_test, y, y_test, label, y_true=None,
         plt.xlabel('S0')
         plt.ylabel(f'{label[i]}')
         plt.legend()
+        if label[i] == 'vega':
+            y_min = - 1.5
+            y_max = y_test[:,i].max() + 1
+            plt.ylim([y_min, y_max])
         plt.title(f'Differential ML - {label[i]} approximation')
 
     plt.tight_layout()

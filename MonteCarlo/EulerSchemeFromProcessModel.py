@@ -48,7 +48,7 @@ class EulerSchemeFromProcessModel:
         s,f = self.pathPayoff(initialState, pathNumber,anti)
         grad = torch.autograd.grad(f, [initialState]+self.model.getDerivParameters(), allow_unused=True, create_graph=second)
         if second:
-            secgrads = torch.autograd.grad(grad[0],[initialState])
+            secgrads = torch.autograd.grad(grad[0],[initialState])[0]
             return s,f,grad, secgrads
         return s,f,grad
     

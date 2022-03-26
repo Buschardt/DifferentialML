@@ -3,6 +3,8 @@ import torch.nn as nn
 import NeuralNetwork.Training as Training
 import NeuralNetwork.Preprocessing as pre
 
+import numpy as np
+
 class NeuralNet(nn.Module):
     def __init__(self, dimInput, dimOutput, nHiddenLayers, nHiddenNeurons, differential=False):
         #Inherit from nn.Module
@@ -82,7 +84,7 @@ class NeuralNet(nn.Module):
 
 
     #Predict
-    def predict(self, X_test, gradients=False):
+    def predict(self, X_test, gradients=False, sec=False):
         #set number of variables
         if X_test.ndim == 1:
             nTest = 1
@@ -105,10 +107,22 @@ class NeuralNet(nn.Module):
         if gradients == True:
             X_scaled.requires_grad_()
             #predict dydx
-            y_derivs_scaled = Training.backprop(X_scaled, self)[0].detach().numpy()
+            y_derivs_scaled = Training.backprop(X_scaled, self)
+
+            #predict second derivatives
+            if sec == True:
+                gamma_scaled = torch.autograd.grad(y_derivs_scaled[0], X_scaled, grad_outputs=torch.ones(X_scaled.shape[0], X_scaled.shape[1]))
+            
+            y_derivs_scaled = y_derivs_scaled[0].detach().numpy()
             X_scaled = X_scaled.detach().numpy()
             #unscale dydx
             y_derivs = self.y_std/self.x_std * y_derivs_scaled
+
+            #unscale gamma
+            if sec == True:
+                gamma = self.y_std/self.x_std**2 * gamma_scaled[0]
+                gamma = gamma.detach().numpy()
+                y_derivs = np.c_[y_derivs, gamma[:,0]]
             return y.detach().numpy(), y_derivs
         else:
             return y.detach().numpy()
