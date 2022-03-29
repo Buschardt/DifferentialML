@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy.polynomial.polynomial as poly
 import numpy as np
+import matplotlib.pyplot as plt
 
 #Linear model class
 class LinearModel(nn.Module):
@@ -15,7 +16,7 @@ class LinearModel(nn.Module):
     def forward(self, x):
         return self.linear(x)
 
-    def train(self, X, y, n_epochs=100, batch_size=257):
+    def train(self, X, y, n_epochs=100, batch_size=256):
 
         loss = nn.MSELoss()
         optimizer = optim.Adam(self.parameters(), lr = 0.001)
@@ -44,9 +45,17 @@ def featureMatrix(state):
 
 
 
-def predExerciseBoundary(xTrain,yTrain,xTest,degree = 2):
-    coefs = poly.polyfit(xTrain, yTrain, degree)
+def predExerciseBoundary(xTrain,yTrain,xTest,degree = 2,basis = 'polynomial'):
+    if basis == 'polynomial':
+        coefs = poly.polyfit(xTrain, yTrain, degree,rcond=None)
+    elif basis == 'laguerre':
+        coefs = np.polynomial.laguerre.lagfit(xTrain,yTrain,degree,rcond=None)
+        return np.polynomial.laguerre.lagval(xTest,coefs).T
+    elif basis == 'legendre':
+        coefs = np.polynomial.legendre.legfit(xTrain,yTrain,degree,rcond=None)
+        return np.polynomial.legendre.legval(xTest,coefs).T
     return poly.polyval(xTest,coefs).T
+
 
 
 #Simulates Black-Scholes paths and calculates exercise value at each t
@@ -55,7 +64,6 @@ def genPaths(S, K, sigma, r, T, dt, dW, type='call', anti=False,tp = None):
         axis = 1
     else:
         axis = 0
-    
     if tp:
         dts = torch.concat((torch.tensor([0.]),torch.tensor([T/(dt)]*dt)))[:tp]
     else:
@@ -109,6 +117,7 @@ def LSM_train_poly(St, Et,discount):
     n_excerises = St.shape[1]
     Tt = np.array([n_excerises]*Et.shape[0])
     St = St.numpy()
+    
     Et = Et.numpy()
     Tt = np.where(Et[:, -1]>0,Tt,n_excerises)
     cashflow = Et[:,-1]
@@ -117,11 +126,15 @@ def LSM_train_poly(St, Et,discount):
         X = St[:, i]
         exercise = Et[:,i]
         itm = exercise>0
-        continuationValue = predExerciseBoundary(X[itm], cashflow[itm], X,3)
-        ex_idx = (exercise>continuationValue)*itm
-        Tt = np.where(ex_idx,i,Tt)
-        cashflow[ex_idx] = exercise[ex_idx]
-        del continuationValue
+        try:
+            continuationValue = predExerciseBoundary(X[itm], cashflow[itm], X,3,basis = 'laguerre')       
+            ex_idx = (exercise>continuationValue)*itm
+            Tt = np.where(ex_idx,i,Tt)
+            cashflow[ex_idx] = exercise[ex_idx]
+            del continuationValue
+        except:
+            pass
+        
     
     return Tt,cashflow
 
@@ -132,8 +145,8 @@ def simpleLSM(S,K,sigma,r,T,dt,dW,type = 'call', anti = False):
         St_anti, Et_anti = genPaths(S, K, sigma, r, T, dt, dW[1], type=type, anti=False,tp = dW[1].nelement())
         V = (Et[-1]*np.exp(-r*T*(len(dW[0])-1)/dt) + Et_anti[-1]*np.exp(-r*T*(len(dW[1])-1)/dt)) / 2
         return V
-    if not dW.nelement():
-        return torch.maximum(K-S,torch.tensor(0)) if type == 'put' else torch.maximum(S-K,torch.tensor(0))
+    #if not dW.nelement():
+    #    return torch.maximum(K-S,torch.tensor(0)) if type == 'put' else torch.maximum(S-K,torch.tensor(0))
     St, Et = genPaths(S, K, sigma, r, T, dt, dW, type=type, anti=False,tp = dW.nelement())
     return Et[-1]*np.exp(-r*T*(len(dW)-1)/dt)
     
@@ -165,3 +178,31 @@ def LSM(S, K, sigma, r, T, dt, dW, w, b, type='call', anti=False):
     npv = torch.mean(npv)
 
     return npv
+
+
+def standardLSM(S0, K,sigma,r,T,dt,discount,nPaths,dW = None):
+    if dW is None:
+        dW = torch.randn(nPaths, dt + 1)
+    n_excerises = dt + 1
+    dts = torch.concat((torch.tensor([0.]),torch.tensor([T/(dt)]*(dt))))
+    S0 = torch.tensor([(S0,)]*nPaths)
+    St = S0 * torch.cumprod(torch.exp((r-sigma**2/2)*dts + sigma*torch.sqrt(dts)*dW), axis=1)
+    Et = np.maximum(K-St,0)
+    cashflow = Et[:,-1]
+    for i in range(1,n_excerises-1)[::-1]:
+        cashflow = cashflow*discount
+        X = St[:, i]
+        exercise = Et[:,i]
+        itm = exercise>0
+        try:
+            continuationValue = predExerciseBoundary(X[itm], cashflow[itm], X,2,basis = 'polynomial')
+            ex_idx = (exercise>continuationValue)*itm
+            cashflow[ex_idx] = exercise[ex_idx]
+        except:
+            pass
+    return (cashflow * discount).mean()
+
+def finiteDifferenceLSM(S0, K,sigma,r,T,dt,discount,nPaths,eps=0.001):
+    dW = torch.randn(nPaths, dt + 1)
+    return (standardLSM(S0+eps,K,sigma,r,T,dt,discount,nPaths,dW)-standardLSM(S0-eps,K,sigma,r,T,dt,discount,nPaths,dW))/(2*eps)
+
