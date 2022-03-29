@@ -91,13 +91,14 @@ plt.plot(net.loss)
 nSamples_LSM = nSamples
 K_LSM = torch.tensor(K)
 S_LSM = K_LSM * np.exp(d * torch.normal(0, 1, size=(nSamples_LSM,1)))
-sigma_LSM = torch.tensor(sigmaMean)
+sigma_LSM =torch.tensor(np.c_[[sigma]*(dt+1)].T)
 r_LSM = torch.tensor(rMean)
 T_LSM = torch.tensor([T])
 discount = np.exp(-(r_LSM.detach().numpy()/dt)*T_LSM.detach().numpy())
 
 C_LSM = np.empty((S_LSM.shape[0]))
-greeks_LSM = np.empty((S_LSM.shape[0],1))
+greeks_LSM = np.empty((S_LSM.shape[0], 2))
+X = np.c_[S_LSM, sigma_LSM[:,0]]
 
 dW = torch.randn(nSamples_LSM, dt + 1)
 St, Et = ls.genPaths(S_LSM, K_LSM, sigma_LSM, r_LSM, T_LSM, dt, dW, type=typeFlg, anti=antiFlg)
@@ -107,30 +108,32 @@ tp,cont = ls.LSM_train_poly(St, Et, discount)
 for i in range(S_LSM.shape[0]):
     Si = S_LSM[i]
     Si.requires_grad_()
+    sigmai = sigma_LSM[i,0]
+    sigmai.requires_grad_()
     if antiFlg:
         dW_temp = [dW[i][:tp[i]+1], -1*dW[i][:tp[ S_LSM.shape[0] + i]+1]]
     else:
         dW_temp = dW[i][:tp[i]+1]
 
-    tempC = ls.simpleLSM(Si, K_LSM, sigma_LSM, r_LSM, T_LSM, dt, dW_temp, type=typeFlg, anti=antiFlg)
-    tempgreeks = torch.autograd.grad(tempC, [Si], allow_unused=True)[0]
+    tempC = ls.simpleLSM(Si, K_LSM, sigmai, r_LSM, T_LSM, dt, dW_temp, type=typeFlg, anti=antiFlg)
+    tempgreeks = torch.autograd.grad(tempC, [Si, sigmai], allow_unused=True)
     C_LSM[i] = tempC.detach().numpy()
-    greeks_LSM[i] = tempgreeks.detach().numpy()
+    greeks_LSM[i,:] = np.asarray(tempgreeks)
 
 print('Data generated')
 
 #Define and train net
-netLSM = nn.NeuralNet(1, outputNeurons, hiddenLayers, hiddenNeurons, differential=diffML)
-netLSM.generateData(S_LSM.detach().numpy(), C_LSM, greeks_LSM)
+netLSM = nn.NeuralNet(2, outputNeurons, hiddenLayers, hiddenNeurons, differential=diffML)
+netLSM.generateData(X, C_LSM, greeks_LSM)
 netLSM.train(n_epochs = epochs, batch_size=batchsize, lr=lr)
 
 #predict
-y_LSM_test, dydx_LSM_test = netLSM.predict(X_test[:,0], gradients=True)
+y_LSM_test, dydx_LSM_test = netLSM.predict(X_test[:,:2], gradients=True)
 
 #plot
 y = np.c_[C_LSM, greeks_LSM]
 y_test_LSM = np.c_[y_LSM_test, dydx_LSM_test]
-plotLabels_LSM = ['price', 'delta']
-y_true_LSM = np.c_[y_test[:,0], dydx_test[:,0]]
+plotLabels_LSM = ['price', 'delta', 'vega']
+y_true_LSM = np.c_[y_test[:,0], dydx_test[:,0], dydx_test[:,1]]
 
 graph.plotTests(S_LSM, S0_test, y, y_test_LSM, plotLabels_LSM, y_true=y_true_LSM, model='Euro')
