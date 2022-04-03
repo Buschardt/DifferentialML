@@ -43,16 +43,37 @@ def featureMatrix(state):
     X = torch.cat((x1, x2, x3, x4), dim = 1)
     return X
 
+#def lstsquares(xTrain,yTrain,xTest):
+#    xTrain = featureMatrix(xTrain)
+#    xTest = featureMatrix(xTest)
+def createBasisFunctions(x_,polDegree,deriv=0):
+    x = [[0]*len(x_)] if deriv else [[1]*len(x_)]
+    for i in range(1,polDegree+1):
+        if deriv:
+            x.append(i*np.array(x_)**(i-1))
+        else:
+            x.append(np.array(x_)**i)
+    return np.array(x).T
+
+def lstsquares(x,y,xTest,degree=3):
+    x = createBasisFunctions(x,degree)
+    xTest = createBasisFunctions(xTest,degree)
+    betas = np.matmul(np.matmul(np.linalg.inv(np.matmul(x.T,x)),x.T),y)
+    return np.dot(xTest,betas)
+
 
 
 def predExerciseBoundary(xTrain,yTrain,xTest,degree = 2,basis = 'polynomial'):
     if basis == 'polynomial':
         coefs = poly.polyfit(xTrain, yTrain, degree,rcond=None)
+        print(coefs)
     elif basis == 'laguerre':
         coefs = np.polynomial.laguerre.lagfit(xTrain,yTrain,degree,rcond=None)
+        print(coefs)
         return np.polynomial.laguerre.lagval(xTest,coefs).T
     elif basis == 'legendre':
         coefs = np.polynomial.legendre.legfit(xTrain,yTrain,degree,rcond=None)
+        print(coefs)
         return np.polynomial.legendre.legval(xTest,coefs).T
     return poly.polyval(xTest,coefs).T
 
@@ -113,30 +134,7 @@ def putPayoff(st,k):
     k = np.array([k])
     return np.maximum(k-st,0)
 
-def LSM_train_poly(St, Et,discount):
-    n_excerises = St.shape[1]
-    Tt = np.array([n_excerises]*Et.shape[0])
-    St = St.numpy()
-    
-    Et = Et.numpy()
-    Tt = np.where(Et[:, -1]>0,Tt,n_excerises)
-    cashflow = Et[:,-1]
-    for i in range(n_excerises-1)[::-1]:
-        cashflow = cashflow*discount
-        X = St[:, i]
-        exercise = Et[:,i]
-        itm = exercise>0
-        try:
-            continuationValue = predExerciseBoundary(X[itm], cashflow[itm], X,3,basis = 'laguerre')       
-            ex_idx = (exercise>continuationValue)*itm
-            Tt = np.where(ex_idx,i,Tt)
-            cashflow[ex_idx] = exercise[ex_idx]
-            del continuationValue
-        except:
-            pass
-        
-    
-    return Tt,cashflow
+
 
 
 def simpleLSM(S,K,sigma,r,T,dt,dW,type = 'call', anti = False):
@@ -180,29 +178,83 @@ def LSM(S, K, sigma, r, T, dt, dW, w, b, type='call', anti=False):
     return npv
 
 
-def standardLSM(S0, K,sigma,r,T,dt,discount,nPaths,dW = None):
+def standardLSM(S0, K,sigma,r,T,dt,discount,nPaths,dW = None,anti = False):
     if dW is None:
-        dW = torch.randn(nPaths, dt + 1)
+        dW = np.random.normal(0,1,(nPaths, dt + 1))
+    if anti:
+        dW = np.concatenate((dW,-1*dW))
+        nPaths = nPaths*2
     n_excerises = dt + 1
-    dts = torch.concat((torch.tensor([0.]),torch.tensor([T/(dt)]*(dt))))
-    S0 = torch.tensor([(S0,)]*nPaths)
-    St = S0 * torch.cumprod(torch.exp((r-sigma**2/2)*dts + sigma*torch.sqrt(dts)*dW), axis=1)
+    dts = np.concatenate((np.array([0.]),np.array([T/(dt)]*(dt))))
+    S0 = np.array([(S0,)]*nPaths)
+    St = S0 * np.cumprod(np.exp((r-sigma**2/2)*dts + sigma*np.sqrt(dts)*dW), axis=1)
     Et = np.maximum(K-St,0)
     cashflow = Et[:,-1]
-    for i in range(1,n_excerises-1)[::-1]:
+    #contValues = []
+    for i in range(n_excerises-1)[::-1]:
         cashflow = cashflow*discount
-        X = St[:, i]
-        exercise = Et[:,i]
+        X = St[:, i]#.copy()
+        exercise = Et[:,i]#.copy()
         itm = exercise>0
         try:
-            continuationValue = predExerciseBoundary(X[itm], cashflow[itm], X,2,basis = 'polynomial')
+            continuationValue = lstsquares(X[itm], cashflow[itm], X,degree=2)
+            boundary = max(X[itm][(continuationValue[itm]<exercise[itm])])
+            print(boundary)
+            #contValues.append(lstsquares(X[itm], cashflow[itm], np.array([25,28,31,34,37,40]),degree=3))
+            #continuationValue = predExerciseBoundary(X[itm], cashflow[itm], X,4,basis = 'polynomial')
+            #if i==48:
+                #plt.plot(X[itm],cashflow[itm],'o',color = 'blue')
+                #plt.plot(X[itm],exercise[itm],'o',color='green')
+                #plt.plot(X[itm],continuationValue[itm],'o',color = 'red')
+            #plt.plot(X[itm],continuationValue[itm]-exercise[itm],'o')
+            #plt.plot(X[itm],0*continuationValue[itm])
+            #plt.show()
             ex_idx = (exercise>continuationValue)*itm
+            ex_idx = (X<=boundary)
+            cashflow[ex_idx] = exercise[ex_idx]
+            #print(i)
+            #print(len(exercise[ex_idx]))
+        except:
+            pass
+    if anti:
+        nPaths = nPaths//2
+        pairs = np.array([(cashflow[i]+cashflow[i+nPaths])/2 for i in range(nPaths)])
+    else:
+        pairs = cashflow
+    print('standard dev: ',np.std(pairs)/np.sqrt(nPaths))
+    print((cashflow).mean())
+    return (cashflow).mean()#contValues#(cashflow).mean(),
+
+def LSM_train_poly(St, Et,discount):
+    n_excerises = St.shape[1]
+    Tt = np.array([n_excerises]*Et.shape[0])
+    St = St.numpy()
+    Et = Et.numpy()
+    Tt = np.where(Et[:, -1]>0,Tt,n_excerises)
+    cashflow = Et[:,-1]
+    #contValues = []
+    boundary_ = []
+    for i in range(n_excerises-1)[::-1]:
+        cashflow = cashflow*discount
+        X = St[:, i]#.copy()
+        exercise = Et[:,i]#.copy()
+        itm = exercise>0
+        try:
+            continuationValue = lstsquares(X[itm], cashflow[itm], X,degree=2)
+            boundary = max(X[itm][(continuationValue[itm]<exercise[itm])])
+            boundary_.append(boundary)
+            #contValues.append(lstsquares(X[itm], cashflow[itm], np.array([25,28,31,34,37,40]),degree=3))
+            #continuationValue = predExerciseBoundary(X[itm], cashflow[itm], X,3,basis = 'laguerre')       
+            ex_idx = (exercise>continuationValue)*itm
+            ex_idx = (X<=boundary)
+            Tt = np.where(ex_idx,i,Tt)
             cashflow[ex_idx] = exercise[ex_idx]
         except:
             pass
-    return (cashflow * discount).mean()
+    return Tt,cashflow,boundary_#,contValues
 
-def finiteDifferenceLSM(S0, K,sigma,r,T,dt,discount,nPaths,eps=0.001):
-    dW = torch.randn(nPaths, dt + 1)
-    return (standardLSM(S0+eps,K,sigma,r,T,dt,discount,nPaths,dW)-standardLSM(S0-eps,K,sigma,r,T,dt,discount,nPaths,dW))/(2*eps)
+
+def finiteDifferenceLSM(S0, K,sigma,r,T,dt,discount,nPaths,eps=0.001,anti = False):
+    dW = np.random.normal(0,1,(nPaths, dt + 1))
+    return (standardLSM(S0+eps,K,sigma,r,T,dt,discount,nPaths,dW,anti)-standardLSM(S0-eps,K,sigma,r,T,dt,discount,nPaths,dW,anti))/(2*eps)
 
