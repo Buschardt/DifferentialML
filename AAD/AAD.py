@@ -8,6 +8,7 @@ Created on Sun Jan 16 21:26:06 2022
 #AAD implementation
 from collections import defaultdict
 import numpy as np
+from scipy.stats import norm
 
 def sin(a):
     value = np.sin(a.value)
@@ -15,6 +16,20 @@ def sin(a):
         (a, np.cos(a.value)),
     )
     return Variable(value, local_gradients)
+
+def sqrt(a):
+    value = np.sqrt(a.value)
+    local_gradients = (
+        (a,0.5*pow(a.value,-0.5)),
+        )
+    return Variable(value,local_gradients)
+
+def normcdf(a):
+    value = norm.cdf(a.value)
+    local_gradients = (
+        (a,norm.pdf(a.value)),
+        )
+    return Variable(value,local_gradients)
 
 def exp(a):
     value = np.exp(a.value)
@@ -67,6 +82,7 @@ class Variable:
     def __init__(self,value,localGradients = ()):
         self.value = value
         self.localGradients = localGradients
+
         
     def __add__(self,other):
         return add(self,other)
@@ -88,8 +104,10 @@ def get_gradients(variable):
     
     def compute_gradients(variable, path_value):
         for child_variable, local_gradient in variable.localGradients:
+            print('path_value: ',path_value)
             # "Multiply the edges of a path":
             value_of_path_to_child = path_value * local_gradient
+            print('value_of_path_to_child: ',value_of_path_to_child)
             # "Add together the different paths":
             gradients[child_variable] += value_of_path_to_child
             # recurse through graph:
@@ -119,13 +137,34 @@ a = Variable(4)
 b = Variable(3)
 c = add(a, b) # = 4 + 3 = 7
 d = mul(a, c) # = 4 * 7 = 28
-
-a = Variable(4)
-b = Variable(3)
-c = a + b
-d = a*c
-gradients = get_gradients(d)
-d.localGradients
+_05 = Variable(0.5)
+r=Variable(0.03)
+T=Variable(2)
+S0=Variable(40)
+K=Variable(40)
+sigma=Variable(0.2)
+dfVar = exp(neg(r)*T)
+forwardVar = S0*exp(r*T)
+get_gradients(forwardVar)
+stdVar = sigma*sqrt(T)
+moneyness = log(forwardVar/K)/stdVar
+d1 = moneyness+stdVar*_05
+d2 = moneyness-stdVar*_05
+P = dfVar*(K*normcdf(neg(d2))-forwardVar*normcdf(neg(d1)))
+gradients = get_gradients(P)
+gradients[S0]
+gradients[sigma]
+gradients[r]
+gradients[T]
+get_gradients(exp(neg(r)))
+a = Variable(0.1)
+r = a*b
+b = Variable(0.3)
+c = a* b+a
+gradients = get_gradients(c)
+for i in gradients:
+    print(i.value)
+    print(i)
 c.localGradients
 b.localGradients
 a.localGradients
@@ -136,3 +175,4 @@ s = s*factor
 get_gradients(s)
 s.value
 s.localGradients
+
