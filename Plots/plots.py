@@ -2,7 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def plotTests(S0, S0_test, y, y_test, label, y_true=None,
- figsize=None, cols=None, rows=None, error=False, model='Black-Scholes'):
+ figsize=None, cols=None, rows=None, error=False,
+ approximator='NN', title='Differential ML', model='Black-Scholes'):
     
     #input:
         #- X indeholder dine S0'er
@@ -37,10 +38,13 @@ def plotTests(S0, S0_test, y, y_test, label, y_true=None,
     plt.figure(figsize=figsize)
     for i in range(0, nPlots):
         plt.subplot(rows, cols, i+1)
-        plt.plot(S0, y[:,i], 'o', color='grey', label=f'Simulated {label[i]}', alpha = 0.3)
-        plt.plot(S0_test, y_test[:,i], color='red', label='NN approximation')
+        if label[i] == 'price':
+            plt.plot(S0, y[:,i], 'o', color='grey', label=f'Simulated payoffs', alpha = 0.3)
+        else:
+            plt.plot(S0, y[:,i], 'o', color='grey', label=f'Simulated {label[i]}', alpha = 0.3)
+        plt.plot(S0_test, y_test[:,i], color='red', label=f'{approximator} approximation', linewidth=1)
         if type(y_true) is np.ndarray:
-            plt.plot(S0_test, y_true[:,i], color='black', label=f'{model} {label[i]}')
+            plt.plot(S0_test, y_true[:,i], color='black', label=f'{model} {label[i]}', linewidth=1)
         plt.xlabel('S0')
         plt.ylabel(f'{label[i]}')
         plt.legend()
@@ -48,7 +52,7 @@ def plotTests(S0, S0_test, y, y_test, label, y_true=None,
             y_min = - 1.5
             y_max = y_test[:,i].max() + 1
             plt.ylim([y_min, y_max])
-        plt.title(f'Differential ML - {label[i]} approximation')
+        plt.title(f'{title} - {label[i]} approximation')
 
     plt.tight_layout()
     plt.show()
@@ -60,12 +64,12 @@ def plotTests(S0, S0_test, y, y_test, label, y_true=None,
     if error == True:
         plt.figure(figsize=figsize)
         for i in range(0, nPlots):
-            error_i = y_true[:,i] - y_test[:,i]
+            error_i = y_test[:,i] - y_true[:,i]
             RMSE_i = np.sqrt((error_i**2).mean())
             RMSE_i_format = "{:.6f}".format(RMSE_i)
             plt.subplot(rows, cols, i+1)
-            plt.plot(S0_test, error_i, color='red', label = 'Predicted')
-            plt.plot(S0_test, [0]*y_true.shape[0], color = 'black', label='Actual')
+            plt.plot(S0_test, error_i, color='red', label = 'Predicted', linewidth=1)
+            plt.plot(S0_test, [0]*y_true.shape[0], color = 'black', label='Actual', linewidth=1)
             plt.plot([], [], ' ', label=f'RMSE: {RMSE_i_format}')
             plt.xlabel('S0')
             plt.legend()
