@@ -35,9 +35,15 @@ hiddenLayers = 4
 hiddenNeurons = 20
 diffML = True
 
+#seed
+seed = 1
+torch.manual_seed(seed)
+np.random.seed(seed)
+
 #Generate data
-S0 = K * np.exp(d * torch.normal(0, 1, size=(nSamples, 1)))
-S0[S0 < 0] = 0.01
+#S0 = K * np.exp(d * torch.normal(0, 1, size=(nSamples, 1)))
+S0 = torch.linspace(K-K*0.5, K+K*0.5, nSamples).view(-1,1)
+#S0[S0 < 0] = 0.01
 ST = np.empty(S0.shape[0])
 C = np.empty(S0.shape[0])
 X = np.c_[S0, sigma, r]
