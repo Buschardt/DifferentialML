@@ -118,7 +118,7 @@ def standardLSM(S0, K,sigma,r,T,dt,discount,nPaths,dW = None,anti = False):
         exercise = Et[:,i]#.copy()
         itm = exercise>0
         try:
-            continuationValue = lstsquares(X[itm], cashflow[itm], X,degree=4)
+            continuationValue = lstsquares(X[itm], cashflow[itm], X,degree=3)
             boundary = max(X[itm][(continuationValue[itm]<exercise[itm])])
             boundaries.append(boundary)
             ex_idx = (exercise>continuationValue)*itm
@@ -137,7 +137,7 @@ def standardLSM(S0, K,sigma,r,T,dt,discount,nPaths,dW = None,anti = False):
     print('standard dev: ',np.std(pairs)/np.sqrt(nPaths))
     print((cashflow).mean())
     print(deltas.mean())
-    return ((cashflow).mean(),deltas.mean()),np.array(boundaries)#contValues#(cashflow).mean(),
+    return np.array(boundaries)#((cashflow).mean(),deltas.mean()),np.array(boundaries)
 
 def LSM_train_poly(St, Et,discount,K,anti,boundaries):
     n_excerises = St.shape[1]
@@ -195,7 +195,7 @@ outputNeurons = 1
 hiddenLayers = 4
 hiddenNeurons = 20
 diffML = True
-
+boundaries_={}
 ###   Longstaff - Schwartz example   ###
 nSamples_LSM = nSamples
 K_LSM = K#torch.tensor(K)
@@ -211,35 +211,28 @@ greeks_LSM = np.empty((S_LSM.shape[0],1))
 
 dW = torch.randn(nSamples_LSM, dt + 1)
 St, Et = genPaths(S_LSM, K_LSM, sigma_LSM, r_LSM, T_LSM, dt, dW, type=typeFlg, anti=antiFlg)
-_,boundary44 = standardLSM(44, K, sigmaMean, rMean, T, dt, discount, nPaths)
-tp,cont,boundaries = LSM_train_poly(St, Et, discount,K,anti=antiFlg,boundaries=meanboundary)
+for i in range(30,50):
+    boundaries_[i] = standardLSM(i, K, sigmaMean, rMean, T, dt, discount, nPaths)
+#_,boundary44 = standardLSM(44, K, sigmaMean, rMean, T, dt, discount, nPaths)
+
+
 meanboundary=[]
-for i in range(len(boundary40)):
-    total=0
-    j=0
-    if boundary44[i]:
-        j=j+1
-        total = total+boundary44[i]
-    if boundary40[i]:
-        j=j+1
-        total = total+boundary40[i]
-    if boundary38[i]:
-        j=j+1
-        total = total+boundary38[i]
-    if boundary36[i]:
-        j=j+1
-        total = total+boundary36[i]
-        
-    if j:
-        meanboundary.append(total/j)
-        
-plt.plot(boundary44)
-plt.plot(boundary40)
-plt.plot(boundary38)
-plt.plot(boundary36)
-plt.plot(meanboundary)
-meanboundary.append(0)
+for i in range(49):
+    total = 0
+    n = 0
+    for key,value in boundaries_.items():
+        if value[i]:
+            n=n+1
+            total = total + value[i]
+    if n:       
+        meanboundary.append(total/n)
+    else:
+        meanboundary.append(0)
+for key,value in boundaries_.items():
+    plt.plot(value)
+plt.plot(meanboundary)    
 plt.ylim([30,40])
+tp,cont,boundaries = LSM_train_poly(St, Et, discount,K,anti=antiFlg,boundaries=meanboundary)
 #deepInTheMoney = np.where(St[:,0]<26) 
 #dpmoney=St[St[:,0]<26].numpy()
 #notSoDeepInTheMoney = np.where(St[:,0]<28)
@@ -296,37 +289,3 @@ print(S_LSM.mean())
 netLSM.predict(np.array([20,36.0,38.0,40.0,42,44,70]), gradients=True,sec=True)
 
 
-
-
-#y_LSM_test, dydx_LSM_test = netLSM.predict(np.array([36.0,38.0,40.0,42,44]), gradients=True)
-#2year,40sigma
-#100*(y_LSM_test.flatten()-np.array([8.488,7.669,6.921,6.243,5.622]))/y_LSM_test.flatten()
-#1year, 40sigma
-#100*(y_LSM_test.flatten()-np.array([7.091,6.139,5.308,4.588,3.957]))/y_LSM_test.flatten()
-#y_LSM_test.flatten()-np.array([7.091,6.139,5.308,4.588,3.957])
-#1year, 20sigma
-#100*(y_LSM_test.flatten()-np.array([4.472,3.244,2.313,1.617,1.118]))/y_LSM_test.flatten()
-#y_LSM_test.flatten()-np.array([4.472,3.244,2.313,1.617,1.118])
-#2year, 20sigma
-#100*(y_LSM_test.flatten()-np.array([4.821,3.735,2.879,2.206,1.675]))/y_LSM_test.flatten()
-#y_LSM_test.flatten()-np.array([4.821,3.735,2.879,2.206,1.675])
-zip(standardContValues,)
-[]
-
-import numpy as np
-X = np.linspace(0,10,100)
-K = 5
-Call = np.maximum(X-K,0)
-Put = np.maximum(K-X,0)
-plt.plot(X,Call)
-plt.figure(figsize=(16,6))
-plt.subplot(1, 2, 1)
-plt.plot(X, Call, color='black')
-plt.xlabel('Stock price')
-plt.ylabel('Payoff')
-plt.title('Call Option')
-plt.subplot(1, 2, 2)
-plt.plot(X, Put, color='black')
-plt.xlabel('Stock price')
-plt.ylabel('Payoff')
-plt.title('Put Option')
