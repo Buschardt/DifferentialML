@@ -127,7 +127,7 @@ print('Data generated')
 #Define and train net - hiddenNeurons
 netLSM = nn.NeuralNet(1, outputNeurons, hiddenLayers, hiddenNeurons, differential=diffML)
 netLSM.generateData(S_LSM.detach().numpy(), C_LSM, greeks_LSM)
-netLSM.train(n_epochs = epochs, batch_size=batch_size, lr=lr,alpha = None,beta = None)
+netLSM.train(n_epochs = epochs, batch_size=batchsize, lr=lr,alpha = None,beta = None)
 
 #predict
 lsm_domain = np.linspace(20,70,51)
