@@ -12,7 +12,7 @@ import MonteCarlo.BrownianMotion as bm
 import MonteCarlo.EulerSchemeFromProcessModel as ep
 from Products.EuropeanOption import Option
 import Plots.plots as graph
-
+import scipy
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -21,53 +21,9 @@ from scipy.stats import multivariate_normal
 from scipy.stats import norm
 import torch
 
-means = np.zeros(5)
-corr_mat = np.matrix([[1, 0.4, -0.3, 0, 0], [0.4, 1, 0, 0, 0.2], [-0.3, 0, 1, 0, 0], [0, 0, 0, 1, 0.15], [0, 0.2, 0, 0.15, 1]])  
-vols = np.array([0.2, 0.2, 0.2, 0.2, 0.2]) 
-initial_spots = np.array([1, 1, 1, 1, 1])
-
-cov_mat = np.diag(vols).dot(corr_mat).dot(np.diag(vols))
-dw=np.random.normal(0,1,(50000, 5))
-
-initial_spots = np.array([100., 100., 100., 100., 100.])
-initial_spots = np.array([1, 1, 1, 1, 1])
-tte = 1.0
-strike = K
-seed = 0
-num_paths = 50000
-
-results = []
-rng = multivariate_normal(means, cov_mat).rvs(size=num_paths)
-asd = np.cov(rng.T)
-
-for i in range(num_paths):
-    rns = rng[i]
-    final_spots = initial_spots * np.exp(-0.5*vols*vols*tte) * np.exp(tte * rns)
-    results.append(final_spots)
-
-df = pd.DataFrame(results)
-df['payoff'] = ((df.prod(axis=1) **(1/ 5)) - strike).clip(0)
-
-df['payoff'].mean()
-
-
-mod_vol_1 = (vols ** 2).mean()
-mod_vol_2 = vols.dot(corr_mat).dot(vols) / len(vols)**2
-
-mod_fwd = np.product(initial_spots)**(1/len(vols)) * np.exp(-0.5*tte*(mod_vol_1 - mod_vol_2))
-
-d_plus = (np.log(mod_fwd / strike) + 0.5 * mod_vol_2 * tte) / np.sqrt(mod_vol_2 * tte)
-d_minus = d_plus - np.sqrt(mod_vol_2 * tte)
-
-mod_fwd * norm.cdf(d_plus) - strike * norm.cdf(d_minus)
-
-
-mu = np.array([-0.0346,-0.017357,0.001105,0.008354])
-
-
 
 #%%
-
+sampler =scipy.stats.qmc.Halton(5, scramble=True, seed=None)
 
 def _sigma(vols):
     return (vols**2).mean()
@@ -87,14 +43,15 @@ def basketDelta(F,K,sigmabar,T,r):
     return norm.cdf((np.log(F/K)+0.5*sigmabar*T)/np.sqrt(sigmabar*T))
     
 nSpots = 5
+means = np.zeros(5)
 corr_mat = torch.Tensor([[1, 0.4, -0.3, 0, 0], [0.4, 1, 0, 0, 0.2], [-0.3, 0, 1, 0, 0], [0, 0, 0, 1, 0.15], [0, 0.2, 0, 0.15, 1]])  
 vols = torch.Tensor([0.2, 0.2, 0.2, 0.2, 0.2]) 
 initial_spots = torch.Tensor([1, 1, 1, 1, 1])
-K = torch.tensor(1.0)
+K = torch.tensor(20.0)
 r = torch.tensor(0.03)
 T = torch.tensor(1)
 nul = torch.tensor(0.0)
-nSamples = 2**13
+nSamples = 2**12
 cov = torch.matmul(torch.matmul(torch.diag(vols),corr_mat),torch.diag(vols))
 sigma= _sigma(vols)
 sigmabar = _sigmabar(vols,corr_mat)
@@ -102,9 +59,12 @@ f = forward(initial_spots,r,sigma,sigmabar,T,nSpots)
 price = basketprice(f,K, sigmabar,T, r)
 
 inc0 =  torch.tensor(multivariate_normal(means, np.eye(5)).rvs(size=nSamples//2)*1.5)
-inc1 = torch.tensor(multivariate_normal(means,cov_mat).rvs(size=nSamples//2))
+inc1 = torch.tensor(multivariate_normal(means,cov).rvs(size=nSamples//2))
 initial_spots = initial_spots*torch.exp(0.25*inc0)
-torch.tensor(np.random.uniform(0.4,1.6,size=(4096,5)))
+initial_spots=torch.tensor(np.random.uniform(0.4,1.6,size=(4096,5)))
+initial_spots = torch.tensor(sampler.random(nSamples//2)*1.2+0.4)
+
+
 greeks = np.zeros((initial_spots.shape))
 for i in range(nSamples//2):
     init_spot = initial_spots[i]
@@ -117,17 +77,22 @@ termSpots = initial_spots * torch.exp((r-0.5*vols*vols)*T)*torch.exp(T*inc1)
 termSpots_anti = initial_spots * torch.exp((r-0.5*vols*vols)*T)*torch.exp(T*-inc1)
 samples = torch.exp(-r*T)*(torch.maximum(termSpots.prod(axis=1)**(1/5)-K,nul)+torch.maximum(termSpots_anti.prod(axis=1)**(1/5)-K,nul))/2
 S0 = initial_spots.prod(axis=1)**(1/5)
+outputNeurons = 1
+hiddenLayers = 4
+hiddenNeurons = 20
+lr=0.1
+
 
 net = nn.NeuralNet(nSpots, outputNeurons, hiddenLayers, hiddenNeurons, differential=True)
 net.generateData(initial_spots, samples,greeks)
-net.train(n_epochs = 100, batch_size=256, lr=lr,alpha=1,beta=0)
-testspot=torch.tensor(np.random.uniform(0.4,1.6,size=(4096,5)))
+net.train(n_epochs = 100, batch_size=256, lr=lr,alpha=None,beta=None)
+testspot=torch.tensor(np.random.uniform(0.4,40,size=(4096,5)))
 predicted = net.predict(testspot,True)
 f = forward(testspot,r,sigma,sigmabar,T,nSpots,1) 
 targets = basketprice(f, K, sigmabar, T, r)
 target_delta = basketDelta(f, K, sigmabar, T, r)
 
-deltas = (predicted[1].prod(axis=1)**(1/5)).numpy()*5*np.exp(r.numpy()-sigmabar.numpy())
+deltas = (predicted[1].prod(axis=1)**(1/5)).numpy()*5*np.exp(r.numpy()-.5*sigma.numpy()+0.5*sigmabar.numpy())
 xAxis = testspot.prod(axis=1)**(1/5)
 plt.figure(figsize=[16,8])
 plt.subplot(1,2,1)
@@ -136,17 +101,15 @@ plt.plot(xAxis,predicted[0],'r.',markersize=2,markerfacecolor='white',label='NN 
 plt.plot(xAxis,targets,'.',markersize=2,label='Actual value',color='black')
 plt.xlabel('geometric average S0')
 plt.ylabel('price')
-plt.xlim([0.4,1.4]) 
-plt.title('Differential ML - price approximation')
+plt.title('Standard ML - price approximation')
 plt.legend()
 plt.subplot(1,2,2)
-plt.plot(S0,greeks.prod(axis=1)**(1/5)*5,'o',color='grey',label=f'Simulated delta', alpha = 0.3)
+plt.plot(S0,greeks.prod(axis=1)**(1/5)*5*np.exp(r.numpy()-.5*sigma.numpy()+0.5*sigmabar.numpy()),'o',color='grey',label=f'Simulated delta', alpha = 0.3)
 plt.plot(xAxis,deltas,'r.',markersize=2,markerfacecolor='white',label='NN approximation')
 plt.plot(xAxis,target_delta,'.',markersize=2,label='Actual value',color='black')
 plt.xlabel('geometric average S0')
 plt.ylabel('delta')
-plt.xlim([0.4,1.4]) 
-plt.title('Differential ML - delta approximation')
+plt.title('Standard ML - delta approximation')
 plt.legend()
 
 
