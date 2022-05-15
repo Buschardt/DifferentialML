@@ -22,7 +22,7 @@ K = 40.
 d = 0.20
 rMean = 0.06
 r = rMean + np.random.normal(0, 0.0025, nSamples)
-typeFlg = 'call'
+typeFlg = 'put'
 antiFlg = True
 nPaths = 50000
 
