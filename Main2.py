@@ -99,7 +99,6 @@ r_LSM = torch.tensor(rMean)
 T_LSM = torch.tensor([T])
 discount = np.exp(-(r_LSM.detach().numpy()/dt)*T_LSM.detach().numpy())
 batchsize = max(256,nSamples//16)
-batchsize = 512
 C_LSM = np.empty((S_LSM.shape[0]))
 greeks_LSM = np.empty((S_LSM.shape[0],1))
 
